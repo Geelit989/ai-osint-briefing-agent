@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from osint_agent.processing.clean_text import clean_text
 
 
 def load_sample_articles(path: str | Path) -> list[dict]:
@@ -20,13 +21,16 @@ if __name__ == "__main__":
     articles = load_sample_articles("data/samples/sample_articles.json")
 
     for idx, article in enumerate(articles):
+        raw_text = article.get("text", "")
+        
         structured_doc = {
             "doc_id": f"doc_{idx:03}",
             "title": article.get("title"),
             "source": article.get("source"),
             "published_date": article.get("published_date"),
             "url": article.get("url"),
-            "text": article.get("text"),
+            "raw_text": raw_text,
+            "text": clean_text(raw_text),
         }
 
         print(json.dumps(structured_doc, indent=2))
