@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
-from osint_agent.processing.clean_text import clean_text
 
+from osint_agent.processing.clean_text import clean_text
+from osint_agent.processing.document import Document
 
 def load_sample_articles(path: str | Path) -> list[dict]:
     """
@@ -33,4 +34,6 @@ if __name__ == "__main__":
             "text": clean_text(raw_text),
         }
 
-        print(json.dumps(structured_doc, indent=2))
+        doc = Document(**structured_doc)
+
+        print(json.dumps(doc.model_dump(), indent=2, default=str))
