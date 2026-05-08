@@ -4,6 +4,9 @@ from pathlib import Path
 from osint_agent.processing.clean_text import clean_text
 from osint_agent.processing.document import Document
 
+
+PROCESSED_PATH = Path("data/processed/cleaned_articles.json")
+
 def load_sample_articles(path: str | Path) -> list[dict]:
     """
     Load articles for ingestion script.
@@ -17,9 +20,10 @@ def load_sample_articles(path: str | Path) -> list[dict]:
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
     
-
+    
 if __name__ == "__main__":
     articles = load_sample_articles("data/samples/sample_articles.json")
+    processed_articles = []
 
     for idx, article in enumerate(articles):
         raw_text = article.get("text", "")
@@ -35,5 +39,14 @@ if __name__ == "__main__":
         }
 
         doc = Document(**structured_doc)
+        processed_articles.append(doc.to_record())
 
-        print(json.dumps(doc.model_dump(), indent=2, default=str))
+        print(json.dumps(doc.to_record(), indent=2, default=str)) # Print the docs
+
+    PROCESSED_PATH.parent.mkdir(parents=True, exist_ok=True) # Ensure the directory exists)
+
+
+    with PROCESSED_PATH.open("w", encoding="utf-8") as f:
+        json.dump(processed_articles, f, indent=2, ensure_ascii=False) # Save the cleaned articles
+
+    print(f"Saved {len(processed_articles)} cleaned articles to {PROCESSED_PATH}")

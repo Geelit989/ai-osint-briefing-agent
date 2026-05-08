@@ -19,6 +19,7 @@ class Document(BaseModel):
             raise ValueError("Cleaned text cannot be empty")
         return text_value
     
+
     @field_validator("published_date", mode="before")
     def parse_published_date(cls, value):
         if value is None:
@@ -46,3 +47,7 @@ class Document(BaseModel):
                 continue    
 
         raise ValueError(f"Unable to parse published_date: {value}")
+    
+
+    def to_record(self) -> dict:
+        return self.model_dump(mode="json")
