@@ -27,7 +27,7 @@ def extract_entities(path: str | Path) -> list[spacy.tokens.Span]:
 
 if __name__ == "__main__":
     
-    ents = extract_entities(SRC_PATH)  
+    entities = extract_entities(SRC_PATH)  
 
-    for ent in ents:
+    for ent in entities:
         print(ent.text, ent.start_char, ent.end_char, ent.label_)
