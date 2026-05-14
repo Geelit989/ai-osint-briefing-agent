@@ -47,7 +47,6 @@ if __name__ == "__main__":
 
 
     with PROCESSED_PATH.open("w", encoding="utf-8") as f:
-        for article in processed_articles:
             json.dump(article, f, indent=2, ensure_ascii=False) # Save the cleaned articles
 
     print(f"Saved {len(processed_articles)} cleaned articles to {PROCESSED_PATH}")
