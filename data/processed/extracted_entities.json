@@ -1,0 +1,50 @@
+[
+  {
+    "entity_id": "doc_000_ent_000",
+    "doc_id": "doc_000",
+    "text": "IRGC",
+    "start_char": 0,
+    "end_char": 4,
+    "label": "ORG"
+  },
+  {
+    "entity_id": "doc_000_ent_001",
+    "doc_id": "doc_000",
+    "text": "US Navy",
+    "start_char": 50,
+    "end_char": 57,
+    "label": "ORG"
+  },
+  {
+    "entity_id": "doc_000_ent_002",
+    "doc_id": "doc_000",
+    "text": "Strait of",
+    "start_char": 68,
+    "end_char": 77,
+    "label": "LOC"
+  },
+  {
+    "entity_id": "doc_000_ent_003",
+    "doc_id": "doc_000",
+    "text": "Hormuz",
+    "start_char": 78,
+    "end_char": 84,
+    "label": "PERSON"
+  },
+  {
+    "entity_id": "doc_000_ent_004",
+    "doc_id": "doc_000",
+    "text": "Monday",
+    "start_char": 88,
+    "end_char": 94,
+    "label": "DATE"
+  },
+  {
+    "entity_id": "doc_000_ent_005",
+    "doc_id": "doc_000",
+    "text": "US",
+    "start_char": 96,
+    "end_char": 98,
+    "label": "GPE"
+  }
+]

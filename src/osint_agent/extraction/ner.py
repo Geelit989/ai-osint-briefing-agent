@@ -2,15 +2,19 @@
 # python -m spacy download en_core_web_sm
 
 import json
+from pathlib import Path
 
 import spacy
-from pathlib import Path
 
 
 SRC_PATH = Path("data/processed/cleaned_articles.json")
+ENT_PATH = Path("data/processed/extracted_entities.json")
+
 
 def extract_entities(path: str | Path) -> list[dict]:
     """Extract named entities from a json file."""
+
+    path = Path(path)
 
     with path.open("r", encoding="utf-8") as f:
         articles = json.load(f)
@@ -38,10 +42,18 @@ def extract_entities(path: str | Path) -> list[dict]:
     return entities
 
 
-if __name__ == "__main__":
-    
-    entities = extract_entities(SRC_PATH)  
+def save_entities(entities: list[dict], path: str | Path = ENT_PATH) -> None:
+    """Save extracted entities to a JSON file."""
 
-    with open("extracted_entities.json", "w", encoding="utf-8") as f:
-        json.dump([{"doc_id": ent["doc_id"], "entity_id": ent["entity_id"], "text": ent["text"], "start_char": ent["start_char"], "end_char": ent["end_char"], "label": ent["label"]} for ent in entities], f, indent=2)
-    print(f"Extracted {len(entities)} entities and saved to extracted_entities.json")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(entities, f, indent=2)
+
+
+if __name__ == "__main__":
+    entities = extract_entities(SRC_PATH)
+    save_entities(entities, ENT_PATH)
+
+    print(f"Extracted {len(entities)} entities and saved to {ENT_PATH}")

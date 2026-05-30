@@ -4,9 +4,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("/Users/duk3y6/Desktop/aia-osint-briefer/ai-osint-briefing-agent/osint_sys.db")
-SRC_PATH = Path("/Users/duk3y6/Desktop/aia-osint-briefer/ai-osint-briefing-agent/data/processed/cleaned_articles.json")
-ENT_PATH = Path("/Users/duk3y6/Desktop/aia-osint-briefer/ai-osint-briefing-agent/data/processed/extracted_entities.json")
+DB_PATH = Path("osint_sys.db")
+SRC_PATH = Path("data/processed/cleaned_articles.json")
+ENT_PATH = Path("data/processed/extracted_entities.json")
 
 DOC_TABLE = "documents"
 ENT_TABLE = "entities"
@@ -21,9 +21,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 
 entities_query = f"""
 INSERT INTO {ENT_TABLE} (
-    entity_id, ent_text, start_char, end_char, label, doc_id
+    ent_text, start_char, end_char, label, doc_id
 )
-VALUES (?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?)
 """
 
 
@@ -47,17 +47,17 @@ def prepare_documents(data: dict) -> tuple:
         data.get("raw_text"),
         data.get("text"),
         json.dumps(data.get("meta_data", {})),
-        )
+    )
+
 
 def prepare_entities(data: dict) -> tuple:
     return (
-        data.get("entity_id"),
-        data.get("ent_text"),
+        data.get("ent_text") or data.get("text"),
         data.get("start_char"),
         data.get("end_char"),
         data.get("label"),
         data.get("doc_id"),
-    )   
+    )
 
 
 def insert_data_query(
