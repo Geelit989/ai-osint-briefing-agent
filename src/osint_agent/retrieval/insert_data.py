@@ -85,3 +85,5 @@ if __name__ == "__main__":
     with sqlite3.connect(DB_PATH) as con:
         insert_data_query(con, documents_query, DOC_TABLE, document_rows)
         insert_data_query(con, entities_query, ENT_TABLE, ent_rows)
+
+    print("Data insertion process completed.")
