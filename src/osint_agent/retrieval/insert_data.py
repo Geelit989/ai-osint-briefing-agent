@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+
 DB_PATH = Path("osint_sys.db")
 SRC_PATH = Path("data/processed/cleaned_articles.json")
 ENT_PATH = Path("data/processed/extracted_entities.json")
