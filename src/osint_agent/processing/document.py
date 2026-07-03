@@ -51,3 +51,11 @@ class Document(BaseModel):
 
     def to_record(self) -> dict:
         return self.model_dump(mode="json")
+    
+
+class Entity(BaseModel):
+    ent_text: str
+    start_char: int
+    end_char: int
+    label: str
+    doc_id: str
