@@ -59,3 +59,6 @@ class Entity(BaseModel):
     end_char: int
     label: str
     doc_id: str
+
+    def to_record(self) -> dict:
+        return self.model_dump(mode="json")
