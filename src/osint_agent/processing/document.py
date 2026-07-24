@@ -38,6 +38,7 @@ class Document(BaseModel):
             "%b %d, %Y",     # May 5, 2026 (short)
             "%Y-%m-%dT%H:%M:%S",
             "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%d %H:%M:%S %z",
         ]
 
         for fmt in formats:

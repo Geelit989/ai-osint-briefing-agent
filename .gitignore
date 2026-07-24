@@ -1,3 +1,28 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+
+# Packaging
+*.egg-info/
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local databases
 osint_sys.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Future vector store
+data/chroma/

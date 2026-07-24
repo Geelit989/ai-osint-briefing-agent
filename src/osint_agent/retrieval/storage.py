@@ -1,4 +1,5 @@
 import sqlite3
+from osint_agent.config import settings
 
 
 ### Create SQLite datebase
@@ -8,7 +9,7 @@ db_path = "osint_sys.db"
 def create_db():
 
     try:
-        con = sqlite3.connect(db_path)
+        con = sqlite3.connect(settings.DB_PATH)
         con.row_factory = sqlite3.Row
         cur = con.cursor()
 

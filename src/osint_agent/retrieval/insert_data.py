@@ -4,8 +4,10 @@ import json
 import sqlite3
 from pathlib import Path
 
+from osint_agent.config import settings
 
-DB_PATH = Path("osint_sys.db")
+
+# DB_PATH = Path("osint_sys.db")
 SRC_PATH = Path("data/processed/cleaned_articles.json")
 ENT_PATH = Path("data/processed/extracted_entities.json")
 
@@ -83,7 +85,7 @@ if __name__ == "__main__":
     document_rows = [prepare_documents(doc) for doc in doc_data]
     ent_rows = [prepare_entities(ent) for ent in ent_data]
 
-    with sqlite3.connect(DB_PATH) as con:
+    with sqlite3.connect(settings.DB_PATH) as con:
         insert_data_query(con, documents_query, DOC_TABLE, document_rows)
         insert_data_query(con, entities_query, ENT_TABLE, ent_rows)
 

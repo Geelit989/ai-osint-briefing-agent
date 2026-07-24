@@ -6,9 +6,10 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
+from osint_agent.config import settings
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = PROJECT_ROOT / "src"
+# PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = settings.PROJECT_ROOT / "src"
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
@@ -17,7 +18,6 @@ from osint_agent.retrieval.storage import create_db
 from osint_agent.ingestion.load_samples import PROCESSED_PATH, process_sample_articles
 from osint_agent.extraction.ner import ENT_PATH, extract_entities, save_entities
 from osint_agent.retrieval.insert_data import (
-    DB_PATH,
     DOC_TABLE,
     ENT_TABLE,
     documents_query,
@@ -26,6 +26,7 @@ from osint_agent.retrieval.insert_data import (
     prepare_documents,
     prepare_entities,
 )
+from osint_agent.config import settings
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ def run_workflow() -> int:
         entity_rows = [prepare_entities(entity) for entity in entities]
 
         LOGGER.info("Step 4/5: Inserting documents and entities into SQLite.")
-        with sqlite3.connect(DB_PATH) as connection:
+        with sqlite3.connect(settings.DB_PATH) as connection:
             reset_tables(connection)
             insert_data_query(connection, documents_query, DOC_TABLE, document_rows)
             insert_data_query(connection, entities_query, ENT_TABLE, entity_rows)

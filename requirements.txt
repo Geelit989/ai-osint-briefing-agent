@@ -1,0 +1,16 @@
+# Core data models and validation
+pydantic>=2.0,<3.0
+
+# HTTP requests and environment configuration
+requests>=2.31,<3.0
+python-dotenv>=1.0,<2.0
+
+# NLP and entity extraction
+spacy>=3.7,<4.0
+
+# Agent orchestration
+langchain>=0.3
+langgraph>=0.2
+
+# Testing
+pytest>=8.0,<10.0
