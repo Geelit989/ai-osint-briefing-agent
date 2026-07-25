@@ -7,8 +7,9 @@ from typing import Any
 import requests
 
 from osint_agent.config import settings
-from osint_agent.models.document import Document
+from osint_agent.processing.document import Document
 from osint_agent.processing.clean_text import clean_text
+from osint_agent.config import settings 
 
 
 def search_currents(
@@ -81,17 +82,8 @@ def search_currents(
 
 
 def currents_to_document(article: dict[str, Any]) -> Document:
-    """Convert one Currents API article into an ARGUS Document.
+    """Normalize one Currents article into an ARGUS Document."""
 
-    Args:
-        article: One article dictionary from the Currents ``news`` response.
-
-    Returns:
-        A validated Document containing normalized Currents article data.
-
-    Raises:
-        ValueError: If the article lacks an ID or usable text.
-    """
     provider_id = article.get("id")
     title = article.get("title")
     description = article.get("description")
@@ -115,9 +107,17 @@ def currents_to_document(article: dict[str, Any]) -> Document:
     return Document(
         doc_id=f"currents-{provider_id}",
         title=title,
-        source=article.get("author") or "Currents",
+        source=article.get("author"),
+        provider="currents",
+        source_type="live_news",
         published_date=article.get("published"),
         url=article.get("url"),
         raw_text=raw_text,
         text=clean_text(raw_text),
+        meta_data={
+            "language": article.get("language"),
+            "category": article.get("category"),
+            "image": article.get("image"),
+            "provider_id": provider_id,
+        },
     )

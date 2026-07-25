@@ -1,92 +1,105 @@
-# This module is responsible for inserting data into the SQLite database.
-
 import json
 import sqlite3
-from pathlib import Path
 
-from osint_agent.config import settings
-
-
-# DB_PATH = Path("osint_sys.db")
-SRC_PATH = Path("data/processed/cleaned_articles.json")
-ENT_PATH = Path("data/processed/extracted_entities.json")
-
-DOC_TABLE = "documents"
-ENT_TABLE = "entities"
+from osint_agent.processing.document import Document, Entity
 
 
-documents_query = f"""
-INSERT INTO {DOC_TABLE} (
-    doc_id, title, source, published_date, url, raw_text, cleaned_text, meta_data
+DOCUMENT_UPSERT_SQL = """
+INSERT INTO documents (
+    doc_id,
+    title,
+    source,
+    provider,
+    source_type,
+    published_date,
+    retrieved_at,
+    url,
+    raw_text,
+    cleaned_text,
+    meta_data
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(doc_id) DO UPDATE SET
+    title = excluded.title,
+    source = excluded.source,
+    provider = excluded.provider,
+    source_type = excluded.source_type,
+    published_date = excluded.published_date,
+    retrieved_at = excluded.retrieved_at,
+    url = excluded.url,
+    raw_text = excluded.raw_text,
+    cleaned_text = excluded.cleaned_text,
+    meta_data = excluded.meta_data
 """
 
-entities_query = f"""
-INSERT INTO {ENT_TABLE} (
-    ent_text, start_char, end_char, label, doc_id
+
+ENTITY_INSERT_SQL = """
+INSERT INTO entities (
+    ent_text,
+    start_char,
+    end_char,
+    label,
+    doc_id
 )
 VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(
+    doc_id,
+    start_char,
+    end_char,
+    label
+)
+DO NOTHING
 """
 
 
-def get_data(src: Path | str) -> list[dict]:
-    src = Path(src)
-
-    with src.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    print(f"Data type: {type(data)}, Number of articles: {len(data)}")
-    return data
-
-
-def prepare_documents(data: dict) -> tuple:
+def prepare_document_row(document: Document) -> tuple:
     return (
-        data.get("doc_id"),
-        data.get("title"),
-        data.get("source"),
-        data.get("published_date"),
-        data.get("url"),
-        data.get("raw_text"),
-        data.get("text"),
-        json.dumps(data.get("meta_data", {})),
+        document.doc_id,
+        document.title,
+        document.source,
+        document.provider,
+        document.source_type,
+        (
+            document.published_date.isoformat()
+            if document.published_date
+            else None
+        ),
+        document.retrieved_at.isoformat(),
+        document.url,
+        document.raw_text,
+        document.text,
+        json.dumps(document.meta_data),
     )
 
 
-def prepare_entities(data: dict) -> tuple:
+def prepare_entity_row(entity: Entity) -> tuple:
     return (
-        data.get("ent_text") or data.get("text"),
-        data.get("start_char"),
-        data.get("end_char"),
-        data.get("label"),
-        data.get("doc_id"),
+        entity.ent_text,
+        entity.start_char,
+        entity.end_char,
+        entity.label,
+        entity.doc_id,
     )
 
 
-def insert_data_query(
+def upsert_document(
     con: sqlite3.Connection,
-    sql_query: str,
-    table_name: str,
-    rows: list[tuple],
+    document: Document,
 ) -> None:
-    try:
-        con.executemany(sql_query, rows)
-        con.commit()
-        print(f"Data inserted successfully into {table_name} table.")
-    except sqlite3.Error as e:
-        con.rollback()
-        print(f"Error inserting data into {table_name} table: {e}")
+    con.execute(
+        DOCUMENT_UPSERT_SQL,
+        prepare_document_row(document),
+    )
 
 
-if __name__ == "__main__":
-    doc_data = get_data(SRC_PATH)
-    ent_data = get_data(ENT_PATH)
+def insert_entities(
+    con: sqlite3.Connection,
+    entities: list[Entity],
+) -> None:
+    if not entities:
+        return
 
-    document_rows = [prepare_documents(doc) for doc in doc_data]
-    ent_rows = [prepare_entities(ent) for ent in ent_data]
-
-    with sqlite3.connect(settings.DB_PATH) as con:
-        insert_data_query(con, documents_query, DOC_TABLE, document_rows)
-        insert_data_query(con, entities_query, ENT_TABLE, ent_rows)
-
-    print("Data insertion process completed.")
+    con.executemany(
+        ENTITY_INSERT_SQL,
+        [prepare_entity_row(entity) for entity in entities],
+    )

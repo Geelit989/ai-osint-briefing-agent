@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 
@@ -8,16 +9,25 @@ class Document(BaseModel):
     doc_id: str
     title: str | None = None
     source: str | None = None
+    provider: str
+    source_type: str
     published_date: datetime | None = None
+    retrieved_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     url: str | None = None
     raw_text: str
     text: str
+    meta_data: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("text")
-    def text_must_not_be_empty(cls, text_value):
-        if not text_value.strip():
-            raise ValueError("Cleaned text cannot be empty")
-        return text_value
+    @field_validator("raw_text", "text")
+    @classmethod
+    def text_must_not_be_empty(cls, value: str) -> str:
+        cleaned_value = value.strip()
+
+        if not cleaned_value:
+            raise ValueError("Document text cannot be empty")
+        return cleaned_value
     
 
     @field_validator("published_date", mode="before")
@@ -36,7 +46,6 @@ class Document(BaseModel):
             "%Y/%m/%d",
             "%B %d, %Y",     # May 5, 2026
             "%b %d, %Y",     # May 5, 2026 (short)
-            "%Y-%m-%dT%H:%M:%S",
             "%Y-%m-%dT%H:%M:%SZ",
             "%Y-%m-%d %H:%M:%S %z",
         ]
@@ -50,7 +59,7 @@ class Document(BaseModel):
         raise ValueError(f"Unable to parse published_date: {value}")
     
 
-    def to_record(self) -> dict:
+    def to_record(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
     
 
