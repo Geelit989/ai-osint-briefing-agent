@@ -1,6 +1,6 @@
 """Run a live Currents search and print one normalized document."""
 
-from osint_agent.ingestion.currents import search_currents
+from osint_agent.providers.currents import search_currents
 
 
 def main() -> None:

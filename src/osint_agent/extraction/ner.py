@@ -1,7 +1,7 @@
 import spacy
 from spacy.language import Language
 
-from osint_agent.processing.document import Document, Entity
+from osint_agent.models.document import Document, Entity
 
 
 def load_ner_model() -> Language:

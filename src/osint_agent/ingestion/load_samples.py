@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from osint_agent.processing.clean_text import clean_text
-from osint_agent.processing.document import Document
+from osint_agent.preprocessing.clean_text import clean_text
+from osint_agent.models.document import Document
 
 
 SAMPLE_PATH = Path("data/samples/sample_articles.json")

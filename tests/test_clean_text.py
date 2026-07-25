@@ -1,4 +1,4 @@
-from osint_agent.processing.clean_text import clean_text
+from osint_agent.preprocessing.clean_text import clean_text
 
 
 def test_clean_text_handles_empty_input():

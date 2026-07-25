@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-from osint_agent.processing.document import Document, Entity
+from osint_agent.models.document import Document, Entity
 
 
 DOCUMENT_UPSERT_SQL = """

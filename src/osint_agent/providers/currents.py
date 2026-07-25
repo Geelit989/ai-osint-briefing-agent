@@ -7,8 +7,8 @@ from typing import Any
 import requests
 
 from osint_agent.config import settings
-from osint_agent.processing.document import Document
-from osint_agent.processing.clean_text import clean_text
+from osint_agent.models.document import Document
+from osint_agent.preprocessing.clean_text import clean_text
 from osint_agent.config import settings 
 
 

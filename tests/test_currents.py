@@ -1,4 +1,4 @@
-from osint_agent.ingestion.currents import currents_to_document
+from osint_agent.providers.currents import currents_to_document
 
 
 def test_currents_to_document() -> None:
