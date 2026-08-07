@@ -72,3 +72,11 @@ class Entity(BaseModel):
 
     def to_record(self) -> dict:
         return self.model_dump(mode="json")
+
+
+class Chunk(BaseModel):
+    chunk_id: str
+    doc_id: str
+    chunk_index: int
+    text: str
+    token_count: int
