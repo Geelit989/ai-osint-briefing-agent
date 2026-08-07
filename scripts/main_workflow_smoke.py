@@ -92,8 +92,8 @@ def main() -> None:
 
     configure_logging()
 
-    query = "North Korea"
-    limit = 1
+    query = "Iran"
+    limit = 20
 
     logger.info("Loading spaCy NER model.")
     nlp = load_ner_model()

@@ -24,6 +24,10 @@ def create_chunk_id(
     return f"{doc_id}::chunk-{chunk_index:03d}::{content_hash}"
 
 
+def normalize_for_comparison(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
 
 def chunk_document(document: Document) -> list[Chunk]:
 
@@ -46,7 +50,10 @@ def chunk_document(document: Document) -> list[Chunk]:
             skip_special_tokens=True,
         ).strip()
 
-        if document.title:
+        normalized_title = normalize_for_comparison(document.title or "")
+        normalized_chunk = normalize_for_comparison(chunk_text)
+
+        if document.title and not normalized_chunk.startswith(normalized_title):
             chunk_text = f"{document.title}\n\n{chunk_text}"
 
         chunks.append(

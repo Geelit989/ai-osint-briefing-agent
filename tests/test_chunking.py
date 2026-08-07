@@ -1,6 +1,7 @@
 """Tests for chunking documents"""
 from osint_agent.models.document import Document
-from osint_agent.preprocessing.chunking import chunk_document
+from osint_agent.preprocessing.chunking import chunk_document, normalize_for_comparison
+
 
 
 
@@ -61,3 +62,42 @@ def test_chunk_ids_are_deterministic():
     second_ids = [chunk.chunk_id for chunk in second_run]
 
     assert first_ids == second_ids
+
+
+def test_title_is_not_duplicated():
+
+    text = "Test Article\n\nNorth Korea launched a missile."
+
+    document = Document(
+        doc_id="test-doc",
+        title="Test Article",
+        provider="test-provider",
+        source_type="test",
+        raw_text=text,
+        text=text,
+    )
+
+    chunks = chunk_document(document)
+
+    normalized_chunk = normalize_for_comparison(chunks[0].text)
+    normalized_title = normalize_for_comparison(document.title)
+
+    assert normalized_chunk.count(normalized_title) == 1
+
+
+def test_title_is_prepended_when_missing():
+
+    text = "North Korea launched a missile."
+
+    document = Document(
+        doc_id="test-doc",
+        title="Test Article",
+        provider="test-provider",
+        source_type="test",
+        raw_text=text,
+        text=text,
+    )
+
+    chunks = chunk_document(document)
+
+    assert chunks[0].text.startswith("Test Article")
