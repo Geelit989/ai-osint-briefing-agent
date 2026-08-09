@@ -3,13 +3,13 @@ import hashlib
 from transformers import AutoTokenizer
 
 from osint_agent.models.document import Document, Chunk
+from osint_agent.config import settings
 
 
-TOKENIZER_NAME = "nomic-ai/nomic-embed-text-v1.5"
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 100
 
-tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
+tokenizer = AutoTokenizer.from_pretrained(settings.TOKENIZER_NAME)
 
 
 def create_chunk_id(

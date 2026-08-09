@@ -27,6 +27,9 @@ class Settings:
 
     CHROMA_PATH = PROJECT_ROOT / "data" / "chroma"
 
+    CHROMA_PATH = "data/chroma"
+    CHROMA_COLLECTION = "argus_document_chunks"
+
     # -----------------------------------------------------------------------
     # API Keys
     # -----------------------------------------------------------------------
@@ -54,5 +57,11 @@ class Settings:
 
     MAX_RESULTS = 25
 
+    # -----------------------------------------------------------------------
+    # Models
+    # -----------------------------------------------------------------------
+
+    EMBEDDING_MODEL = "nomic-embed-text"
+    TOKENIZER_NAME = "nomic-ai/nomic-embed-text-v1.5"
 
 settings = Settings()
