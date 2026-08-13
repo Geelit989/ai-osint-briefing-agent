@@ -11,12 +11,22 @@ def get_chroma_client() -> chromadb.PersistentClient:
     )
 
 
-def get_document_collection():
-    """Return the ARGUS document chunk collection."""
+def create_document_collection():
+    """Create the ARGUS document chunk collection if needed."""
 
     client = get_chroma_client()
 
     return client.get_or_create_collection(
+        name=settings.CHROMA_COLLECTION
+    )
+
+
+def get_document_collection():
+    """Return the existing ARGUS document chunk collection."""
+
+    client = get_chroma_client()
+
+    return client.get_collection(
         name=settings.CHROMA_COLLECTION
     )
 
@@ -50,4 +60,14 @@ def query_chunks(
     return collection.query(
         query_embeddings=[query_embedding],
         n_results=n_results,
+    )
+
+
+def delete_document_chunks(doc_id: str) -> None:
+    """Delete all indexed chunks belonging to a document."""
+
+    collection = get_document_collection()
+
+    collection.delete(
+        where={"doc_id": doc_id}
     )

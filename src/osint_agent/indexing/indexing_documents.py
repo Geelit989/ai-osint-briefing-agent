@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from osint_agent.models.document import Document
 from osint_agent.preprocessing.chunking import chunk_document
 from osint_agent.indexing.embedding import embed_documents
-from osint_agent.retrieval.chroma import upsert_chunks
+from osint_agent.storage.chroma import upsert_chunks
 
 
 @dataclass

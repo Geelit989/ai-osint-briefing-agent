@@ -26,8 +26,6 @@ class Settings:
     DB_PATH = PROJECT_ROOT / "osint_sys.db"
 
     CHROMA_PATH = PROJECT_ROOT / "data" / "chroma"
-
-    CHROMA_PATH = "data/chroma"
     CHROMA_COLLECTION = "argus_document_chunks"
 
     # -----------------------------------------------------------------------
