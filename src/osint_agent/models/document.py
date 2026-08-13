@@ -80,3 +80,22 @@ class Chunk(BaseModel):
     chunk_index: int
     text: str
     token_count: int
+
+
+class EvidenceChunk(BaseModel):
+    """A semantically retrieved chunk used as evidence by ARGUS."""
+
+    chunk_id: str
+    doc_id: str
+    text: str
+
+    title: str | None = None
+    source: str | None = None
+    provider: str | None = None
+    source_type: str | None = None
+    published_date: str | None = None
+
+    distance: float = Field(
+        ...,
+        description="Raw Chroma retrieval distance; lower is more similar.",
+    )

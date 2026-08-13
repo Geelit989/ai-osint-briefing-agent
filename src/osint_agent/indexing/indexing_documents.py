@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from osint_agent.models.document import Document
 from osint_agent.preprocessing.chunking import chunk_document
 from osint_agent.indexing.embedding import embed_documents
-from osint_agent.storage.chroma import upsert_chunks
+from osint_agent.storage.chroma import (
+    delete_document_chunks,
+    upsert_chunks,
+)
 
 
 @dataclass
@@ -15,7 +18,7 @@ class IndexingResult:
 
 
 def index_document(document: Document) -> IndexingResult:
-    """Chunk, embed, and persist a Document in the semantic index."""
+    """Chunk, embed, and replace a Document in the semantic index."""
 
     chunks = chunk_document(document)
 
@@ -52,6 +55,8 @@ def index_document(document: Document) -> IndexingResult:
         }
         for chunk in chunks
     ]
+
+    delete_document_chunks(document.doc_id)
 
     upsert_chunks(
         ids=ids,

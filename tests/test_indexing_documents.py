@@ -117,3 +117,96 @@ def test_index_documents_indexes_each_document(
     assert results[0].doc_id == "doc-001"
     assert results[1].doc_id == "doc-002"
     assert mock_index_document.call_count == 2
+
+
+from osint_agent.models.document import Document
+from osint_agent.indexing.indexing_documents import index_document
+from osint_agent.storage.chroma import get_document_collection
+
+
+TEST_DOC_ID = "stale-chunk-test"
+
+
+def get_doc_records(doc_id: str) -> dict:
+    """Return all Chroma records for one document."""
+
+    collection = get_document_collection()
+
+    return collection.get(
+        where={"doc_id": doc_id}
+    )
+
+
+def test_reindexing_document_removes_stale_chunks():
+    """Re-indexing a document should replace all prior Chroma chunks."""
+
+    collection = get_document_collection()
+
+    # Ensure the test starts from a clean state.
+    collection.delete(
+        where={"doc_id": TEST_DOC_ID}
+    )
+
+    long_text = (
+        "Military forces conducted a large regional exercise involving "
+        "aircraft, naval vessels, and ground units. "
+    ) * 200
+
+    doc_v1 = Document(
+        doc_id=TEST_DOC_ID,
+        title="Stale Chunk Test",
+        source="test",
+        provider="manual",
+        source_type="test",
+        published_date=None,
+        url=None,
+        raw_text=long_text,
+        text=long_text,
+    )
+
+    result_v1 = index_document(doc_v1)
+    records_v1 = get_doc_records(TEST_DOC_ID)
+
+    old_ids = set(records_v1["ids"])
+
+    assert result_v1.chunks_created > 1
+    assert len(old_ids) == result_v1.chunks_created
+
+    short_text = (
+        "Military forces concluded the regional exercise and returned "
+        "to their home stations."
+    )
+
+    doc_v2 = Document(
+        doc_id=TEST_DOC_ID,
+        title="Stale Chunk Test",
+        source="test",
+        provider="manual",
+        source_type="test",
+        published_date=None,
+        url=None,
+        raw_text=short_text,
+        text=short_text,
+    )
+
+    result_v2 = index_document(doc_v2)
+    records_v2 = get_doc_records(TEST_DOC_ID)
+
+    new_ids = set(records_v2["ids"])
+    stale_ids = old_ids - new_ids
+
+    current_ids = set(
+        get_doc_records(TEST_DOC_ID)["ids"]
+    )
+
+    surviving_stale_ids = stale_ids & current_ids
+
+    assert result_v2.chunks_created == 1
+    assert not surviving_stale_ids
+    assert current_ids == new_ids
+    assert len(current_ids) == result_v2.chunks_created
+
+    # Cleanup so the test does not leave test records in Chroma.
+    collection.delete(
+        where={"doc_id": TEST_DOC_ID}
+    )
