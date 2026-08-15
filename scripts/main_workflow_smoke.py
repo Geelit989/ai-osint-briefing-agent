@@ -20,7 +20,7 @@ from osint_agent.extraction.ner import (
 from osint_agent.providers.currents import (
     search_currents,
 )
-from osint_agent.retrieval.insert_data import (
+from osint_agent.storage.insert_data import (
     insert_entities,
     upsert_document,
 )

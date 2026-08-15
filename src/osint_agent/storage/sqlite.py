@@ -99,5 +99,91 @@ def create_db(db_path: str | Path = settings.DB_PATH) -> None:
         _create_indexes(con)
 
 
+
+    import sqlite3
+
+from osint_agent.config import settings
+from osint_agent.models.document import Document
+
+
+def get_document(doc_id: str) -> Document | None:
+    """Load one stored document from SQLite."""
+
+    with sqlite3.connect(settings.DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+
+        row = con.execute(
+            """
+            SELECT
+                doc_id,
+                title,
+                source,
+                provider,
+                source_type,
+                published_date,
+                url,
+                raw_text,
+                cleaned_text
+            FROM documents
+            WHERE doc_id = ?
+            """,
+            (doc_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return Document(
+        doc_id=row["doc_id"],
+        title=row["title"],
+        source=row["source"],
+        provider=row["provider"],
+        source_type=row["source_type"],
+        published_date=row["published_date"],
+        url=row["url"],
+        raw_text=row["raw_text"],
+        text=row["cleaned_text"],
+    )
+
+
+def get_documents() -> list[Document]:
+    """Load all stored documents from SQLite."""
+
+    with sqlite3.connect(settings.DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+
+        rows = con.execute(
+            """
+            SELECT
+                doc_id,
+                title,
+                source,
+                provider,
+                source_type,
+                published_date,
+                url,
+                raw_text,
+                cleaned_text
+            FROM documents
+            ORDER BY published_date
+            """
+        ).fetchall()
+
+    return [
+        Document(
+            doc_id=row["doc_id"],
+            title=row["title"],
+            source=row["source"],
+            provider=row["provider"],
+            source_type=row["source_type"],
+            published_date=row["published_date"],
+            url=row["url"],
+            raw_text=row["raw_text"],
+            text=row["cleaned_text"],
+        )
+        for row in rows
+    ]
+
+
 if __name__ == "__main__":
     create_db()

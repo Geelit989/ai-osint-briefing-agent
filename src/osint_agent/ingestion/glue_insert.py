@@ -6,8 +6,8 @@ from spacy.language import Language
 from osint_agent.config import settings
 from osint_agent.models.document import Document
 from osint_agent.extraction.ner import extract_entities
-from osint_agent.retrieval.insert_data import upsert_document
-from osint_agent.retrieval.insert_data import insert_entities
+from osint_agent.storage.insert_data import upsert_document
+from osint_agent.storage.insert_data import insert_entities
 
 
 @dataclass

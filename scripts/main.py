@@ -14,10 +14,10 @@ SRC_DIR = settings.PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from osint_agent.retrieval.storage import create_db
+from osint_agent.storage.sqlite import create_db
 from osint_agent.ingestion.load_samples import PROCESSED_PATH, process_sample_articles
 from osint_agent.extraction.ner import ENT_PATH, extract_entities, save_entities
-from osint_agent.retrieval.insert_data import (
+from osint_agent.storage.insert_data import (
     DOC_TABLE,
     ENT_TABLE,
     documents_query,

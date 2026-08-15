@@ -71,13 +71,3 @@ def delete_document_chunks(doc_id: str) -> None:
     collection.delete(
         where={"doc_id": doc_id}
     )
-
-
-def delete_document_chunks(doc_id: str) -> None:
-    """Delete all indexed chunks belonging to a document."""
-
-    collection = get_document_collection()
-
-    collection.delete(
-        where={"doc_id": doc_id}
-    )
