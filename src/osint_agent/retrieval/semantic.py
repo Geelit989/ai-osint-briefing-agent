@@ -39,6 +39,7 @@ def semantic_search(
                 provider=metadata.get("provider") or None,
                 source_type=metadata.get("source_type") or None,
                 published_date=metadata.get("published_date") or None,
+                url=metadata.get("url") or None,
                 distance=distance,
             )
         )

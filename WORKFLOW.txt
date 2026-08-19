@@ -1,0 +1,172 @@
+PROJECT ARGUS — REPOSITORY WORKFLOW
+===================================
+
+Legend
+------
+  [implemented]  Code exists in this repository
+  [future]       Boundary exists, but downstream behavior is not implemented
+
+
+1. DOCUMENT INGESTION AND STRUCTURED STORAGE
+--------------------------------------------
+
+  External/sample article
+          |
+          v
+  Document model
+  src/osint_agent/models/document.py
+          |
+          +------------------------------+
+          |                              |
+          v                              v
+  Named-entity extraction         Document persistence
+  extraction/ner.py               storage/insert_data.py
+          |                              |
+          v                              |
+  list[Entity]                           |
+          |                              |
+          +---------------+--------------+
+                          v
+                  SQLite [authoritative]
+                  - documents table
+                  - entities table
+                  storage/sqlite.py
+
+  Coordinating entry points:
+    - ingestion/glue_insert.py -> ingest_document(...)
+    - scripts/main.py          -> sample smoke-test workflow
+
+
+2. SEMANTIC INDEXING
+--------------------
+
+  Document
+      |
+      v
+  chunk_document(...)
+  preprocessing/chunking.py
+      |
+      v
+  list[Chunk]
+      |
+      v
+  embed_documents(...)
+  indexing/embedding.py
+      |
+      v
+  chunk vectors + chunk metadata
+      |
+      +--> delete_document_chunks(doc_id)
+      |    removes stale chunks before replacement
+      |
+      v
+  upsert_chunks(...)
+  storage/chroma.py
+      |
+      v
+  ChromaDB semantic index [persistent]
+
+  Coordinator:
+    indexing/indexing_documents.py -> index_document(...)
+
+
+3. QUERY, SEMANTIC RETRIEVAL, AND SUFFICIENCY
+---------------------------------------------
+
+  User query
+      |
+      v
+  embed_query(...)
+  indexing/embedding.py
+      |
+      v
+  Query vector
+      |
+      v
+  query_chunks(query_embedding, n_results)
+  storage/chroma.py
+      |
+      v
+  Raw Chroma results
+  - IDs
+  - chunk text
+  - metadata
+  - raw distances
+      |
+      v
+  semantic_search(query, n_results=5)
+  retrieval/semantic.py
+      |
+      v
+  list[EvidenceChunk]
+  models/document.py
+      |
+      v
+  check_retrieval_sufficiency(
+      evidence,
+      max_distance,
+      min_evidence,
+  )
+  retrieval/sufficiency.py
+      |
+      |  Deterministic rules:
+      |  - usable when distance <= max_distance
+      |  - sufficient when usable count >= min_evidence
+      |  - best_distance is the lowest raw distance
+      |  - evidence_count includes all retrieved chunks
+      |
+      v
+  RetrievalAssessment
+  models/retrieval.py
+      |
+      +-------------------------------+
+      |                               |
+      v                               v
+  sufficient=True               sufficient=False
+      |                               |
+      v                               v
+  Future reasoning              Future fallback retrieval
+  [not implemented]             [not implemented]
+
+
+4. RESPONSIBILITY BOUNDARIES
+----------------------------
+
+  SQLite
+    Owns authoritative documents, entities, and structured metadata.
+
+  ChromaDB
+    Owns embedded chunks and semantic nearest-neighbor retrieval.
+
+  Semantic retrieval
+    Converts a query into list[EvidenceChunk] with raw Chroma distances.
+
+  Retrieval sufficiency
+    Filters existing EvidenceChunk objects using explicit thresholds and
+    reports whether enough usable evidence exists. It does not alter raw
+    distances, generate confidence scores, or judge analytic correctness.
+
+  Reasoning/fallback
+    Future pipeline stages; intentionally absent from the current repository.
+
+
+5. CURRENT END-TO-END BOUNDARY
+------------------------------
+
+  ingest/store document
+          |
+          +--> SQLite document/entity records
+          |
+          +--> chunk -> embed -> ChromaDB
+                                  |
+  user query -> embed ------------+
+                                  |
+                                  v
+                         list[EvidenceChunk]
+                                  |
+                                  v
+                         RetrievalAssessment
+                           /             \
+                    sufficient       insufficient
+                         |                 |
+                      [future]          [future]

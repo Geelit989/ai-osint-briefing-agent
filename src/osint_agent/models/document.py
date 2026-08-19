@@ -94,6 +94,7 @@ class EvidenceChunk(BaseModel):
     provider: str | None = None
     source_type: str | None = None
     published_date: str | None = None
+    url: str | None = None
 
     distance: float = Field(
         ...,

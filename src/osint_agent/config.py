@@ -59,7 +59,29 @@ class Settings:
     # Models
     # -----------------------------------------------------------------------
 
-    EMBEDDING_MODEL = "nomic-embed-text"
-    TOKENIZER_NAME = "nomic-ai/nomic-embed-text-v1.5"
+    EMBEDDING_MODEL = os.getenv(
+        "EMBEDDING_MODEL",
+        "nomic-embed-text",
+    )
+
+    TOKENIZER_NAME = os.getenv(
+        "TOKENIZER_NAME",
+        "nomic-ai/nomic-embed-text-v1.5",
+    )
+
+
+    REASONING_MODEL = os.getenv(
+        "REASONING_MODEL",
+        "llama3.2",
+    )
+
+    OLLAMA_HOST = os.getenv(
+        "OLLAMA_HOST",
+        "http://localhost:11434",
+    )
+
+    REASONING_TIMEOUT_SECONDS = int(
+    os.getenv("REASONING_TIMEOUT_SECONDS", "120")
+)
 
 settings = Settings()
