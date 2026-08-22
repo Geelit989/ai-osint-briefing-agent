@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import time
 
 from osint_agent.indexing.corpus import index_corpus
 
@@ -18,8 +19,12 @@ def configure_logging() -> None:
         ),
     )
 
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 def main() -> None:
+    start = time.perf_counter()
+
     configure_logging()
 
     logger.info("Starting ARGUS corpus indexing.")
@@ -39,6 +44,10 @@ def main() -> None:
         result.chroma_count_before,
         result.chroma_count_after,
     )
+
+    end = time.perf_counter()
+    execution_time = end - start
+    print(f"Indexing Elapsed Time: {execution_time:.6f}s")
 
 
 if __name__ == "__main__":

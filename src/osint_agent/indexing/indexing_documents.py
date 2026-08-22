@@ -52,6 +52,12 @@ def index_document(document: Document) -> IndexingResult:
             "source": document.source or "",
             "provider": document.provider,
             "source_type": document.source_type,
+            "published_date": (
+                document.published_date.isoformat()
+                if document.published_date
+                else ""
+            ),
+            "url": document.url or "",
         }
         for chunk in chunks
     ]
