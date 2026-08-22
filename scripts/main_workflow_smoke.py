@@ -10,7 +10,7 @@ Workflow:
 
 import logging
 import sqlite3
-import sys
+import argparse
 
 from osint_agent.config import settings
 from osint_agent.extraction.ner import (
@@ -27,6 +27,26 @@ from osint_agent.storage.insert_data import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the ARGUS Currents ingestion smoke workflow."
+    )
+
+    parser.add_argument(
+        "query",
+        help="Currents search query.",
+    )
+
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of articles to normalize.",
+    )
+
+    return parser.parse_args()
 
 
 def configure_logging() -> None:
@@ -90,10 +110,13 @@ def query_entities(
 def main() -> None:
     """Execute the Currents ingestion smoke test."""
 
+
     configure_logging()
 
-    query = "Iran"
-    limit = 20
+    args = parse_args()
+
+    query = args.query
+    limit = args.limit
 
     logger.info("Loading spaCy NER model.")
     nlp = load_ner_model()

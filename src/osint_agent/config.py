@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # Load environment variables
 # ---------------------------------------------------------------------------
 
-load_dotenv()
+load_dotenv() # TODO Use .env file to set environment variables / whats more efficient: config or .env?
 
 
 class Settings:

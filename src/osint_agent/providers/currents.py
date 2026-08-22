@@ -9,27 +9,14 @@ import requests
 from osint_agent.config import settings
 from osint_agent.models.document import Document
 from osint_agent.preprocessing.clean_text import clean_text
-from osint_agent.config import settings 
 
 
 def search_currents(
     query: str,
-    limit: int = 10,
+    limit: int = 50,
 ) -> list[Document]:
-    """Search Currents and return normalized ARGUS documents.
+    """Search Currents and return up to `limit` normalized ARGUS documents."""
 
-    Args:
-        query: Search terms submitted to the Currents API.
-        limit: Maximum number of returned articles to normalize.
-
-    Returns:
-        A list of validated Document objects.
-
-    Raises:
-        ValueError: If the query is empty or limit is invalid.
-        RuntimeError: If the API key is missing or Currents returns an error.
-        requests.RequestException: If the HTTP request fails.
-    """
     normalized_query = query.strip()
 
     if not normalized_query:
@@ -41,42 +28,71 @@ def search_currents(
     if not settings.CURRENTS_API_KEY:
         raise RuntimeError("CURRENTS_API_KEY is not configured.")
 
-    response = requests.get(
-        settings.CURRENTS_SEARCH_URL,
-        params={
-            "keywords": normalized_query,
-            "language": "en",
-            "apiKey": settings.CURRENTS_API_KEY,
-        },
-        timeout=settings.REQUEST_TIMEOUT_SECONDS,
-    )
-
-    response.raise_for_status()
-    payload = response.json()
-
-    if payload.get("status") == "error":
-        raise RuntimeError(
-            f"Currents API error: {payload.get('message', 'Unknown error')}"
-        )
-
-    articles = payload.get("news")
-
-    if not isinstance(articles, list):
-        raise RuntimeError(
-            "Currents response did not contain a valid 'news' list."
-        )
-
     documents: list[Document] = []
+    seen_doc_ids: set[str] = set()
 
-    for article in articles[:limit]:
-        if not isinstance(article, dict):
-            continue
+    page_number = 1
+    page_size = min(limit, 20)
 
-        try:
-            documents.append(currents_to_document(article))
-        except ValueError:
-            # Skip unusable records while allowing valid articles through.
-            continue
+    while len(documents) < limit:
+        response = requests.get(
+            settings.CURRENTS_SEARCH_URL,
+            params={
+                "keywords": normalized_query,
+                "language": "en",
+                "page_number": page_number,
+                "page_size": page_size,
+                "apiKey": settings.CURRENTS_API_KEY,
+            },
+            timeout=settings.REQUEST_TIMEOUT_SECONDS,
+        )
+
+        response.raise_for_status()
+        payload = response.json()
+
+        if payload.get("status") == "error":
+            raise RuntimeError(
+                f"Currents API error: "
+                f"{payload.get('message', 'Unknown error')}"
+            )
+
+        articles = payload.get("news")
+
+        if not isinstance(articles, list):
+            raise RuntimeError(
+                "Currents response did not contain a valid 'news' list."
+            )
+
+        print(
+            f"Currents page {page_number}: "
+            f"{len(articles)} article(s)"
+        )
+
+        if not articles:
+            break
+
+        for article in articles:
+            if not isinstance(article, dict):
+                continue
+
+            try:
+                document = currents_to_document(article)
+            except ValueError:
+                continue
+
+            if document.doc_id in seen_doc_ids:
+                continue
+
+            seen_doc_ids.add(document.doc_id)
+            documents.append(document)
+
+            if len(documents) >= limit:
+                break
+
+        if len(articles) < page_size:
+            break
+
+        page_number += 1
 
     return documents
 
