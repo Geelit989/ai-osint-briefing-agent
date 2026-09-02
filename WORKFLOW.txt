@@ -102,6 +102,17 @@ Legend
   models/document.py
       |
       v
+  Relevance filtering
+  - raw distance <= max_distance
+      |
+      v
+  Deterministic evidence identity
+  retrieval/evidence_identity.py
+  - same doc_id
+  - canonical URL equality
+  - SHA-256 of normalized authoritative SQLite cleaned_text
+      |
+      v
   check_retrieval_sufficiency(
       evidence,
       max_distance,
@@ -111,12 +122,17 @@ Legend
       |
       |  Deterministic rules:
       |  - usable when distance <= max_distance
-      |  - sufficient when usable count >= min_evidence
+      |  - identity grouping occurs only after relevance filtering
+      |  - sufficient when independent evidence units >= min_evidence
       |  - best_distance is the lowest raw distance
-      |  - evidence_count includes all retrieved chunks
+      |  - retrieved, usable, and independent counts remain separate
       |
       v
   RetrievalAssessment
+  - retrieved_chunk_count
+  - usable_chunk_count
+  - independent_evidence_count
+  - grouping_manifest
   models/retrieval.py
       |
       +-------------------------------+
@@ -125,8 +141,8 @@ Legend
   sufficient=True               sufficient=False
       |                               |
       v                               v
-  Future reasoning              Future fallback retrieval
-  [not implemented]             [not implemented]
+  bounded synthesis             InsufficientEvidenceResult
+  + claim support               (model is not invoked)
 
 
 4. RESPONSIBILITY BOUNDARIES
@@ -142,12 +158,21 @@ Legend
     Converts a query into list[EvidenceChunk] with raw Chroma distances.
 
   Retrieval sufficiency
-    Filters existing EvidenceChunk objects using explicit thresholds and
-    reports whether enough usable evidence exists. It does not alter raw
-    distances, generate confidence scores, or judge analytic correctness.
+    Filters existing EvidenceChunk objects using explicit thresholds, resolves
+    authoritative documents from SQLite, groups only deterministically proven
+    record identities, and reports whether enough independent evidence units
+    exist. It does not alter raw distances, generate confidence scores, or
+    judge analytic correctness.
+
+  Independent Evidence Unit
+    A deterministic sufficiency-accounting construct, not proof of independent
+    sourcing or corroboration. Provider diversity is not an identity signal;
+    same-provider reporting is not automatically duplicate reporting. Similar
+    or related reporting remains separate unless exact identity is proven.
 
   Reasoning/fallback
-    Future pipeline stages; intentionally absent from the current repository.
+    Reasoning receives every usable chunk, including duplicate chunks grouped
+    into one accounting unit. Claim-support validation runs after synthesis.
 
 
 5. CURRENT END-TO-END BOUNDARY
@@ -165,8 +190,18 @@ Legend
                          list[EvidenceChunk]
                                   |
                                   v
+                      relevance filtering
+                                  |
+                                  v
+                  deterministic evidence grouping
+                                  |
+                                  v
                          RetrievalAssessment
                            /             \
                     sufficient       insufficient
                          |                 |
-                      [future]          [future]
+                         v                 v
+                 bounded synthesis   typed no-model result
+                         |
+                         v
+                claim-support validation

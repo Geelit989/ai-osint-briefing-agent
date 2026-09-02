@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from osint_agent.models.retrieval import EvidenceGroup
+
 
 Confidence = Literal["low", "moderate", "high"]
 ClaimSupportIssue = Literal[
@@ -142,8 +144,42 @@ class BriefSuccess(BaseModel):
 class InsufficientEvidenceResult(BaseModel):
     status: Literal["insufficient_evidence"] = "insufficient_evidence"
     reason: str
-    evidence_count: int
-    usable_evidence_count: int
+    evidence_count: int = Field(
+        ge=0,
+        description="Deprecated alias of retrieved_chunk_count.",
+    )
+    usable_evidence_count: int = Field(
+        ge=0,
+        description="Deprecated alias of usable_chunk_count.",
+    )
+    retrieved_chunk_count: int = Field(ge=0)
+    usable_chunk_count: int = Field(ge=0)
+    independent_evidence_count: int = Field(ge=0)
+    grouping_manifest: list[EvidenceGroup]
+
+    @model_validator(mode="after")
+    def retrieval_counts_must_be_consistent(
+        self,
+    ) -> "InsufficientEvidenceResult":
+        if self.evidence_count != self.retrieved_chunk_count:
+            raise ValueError("evidence_count must equal retrieved_chunk_count")
+        if self.usable_evidence_count != self.usable_chunk_count:
+            raise ValueError(
+                "usable_evidence_count must equal usable_chunk_count"
+            )
+        if self.independent_evidence_count != len(self.grouping_manifest):
+            raise ValueError(
+                "independent_evidence_count must match grouping_manifest"
+            )
+        if not (
+            self.retrieved_chunk_count
+            >= self.usable_chunk_count
+            >= self.independent_evidence_count
+        ):
+            raise ValueError(
+                "retrieval counts must be monotonically nonincreasing"
+            )
+        return self
 
 
 BriefResult = BriefSuccess | InsufficientEvidenceResult

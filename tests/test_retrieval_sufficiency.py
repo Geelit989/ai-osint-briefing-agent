@@ -4,10 +4,15 @@ from osint_agent.models.document import EvidenceChunk
 from osint_agent.retrieval.sufficiency import check_retrieval_sufficiency
 
 
-def make_evidence(distance: float, index: int = 0) -> EvidenceChunk:
+def make_evidence(
+    distance: float,
+    index: int = 0,
+    doc_id: str | None = None,
+) -> EvidenceChunk:
+    doc_id = doc_id or f"doc-{index + 1}"
     return EvidenceChunk(
-        chunk_id=f"doc-1::chunk-{index:03}",
-        doc_id="doc-1",
+        chunk_id=f"{doc_id}::chunk-{index:03}",
+        doc_id=doc_id,
         text=f"Evidence text {index}",
         title="Source title",
         source="Example Source",
@@ -38,7 +43,12 @@ def test_single_strong_result_respects_minimum_evidence():
     )
 
     assert assessment.sufficient is False
-    assert assessment.reason == "insufficient usable evidence: 1 < 2"
+    assert assessment.reason == (
+        "insufficient independent evidence: 1 < 2 from 1 usable chunks"
+    )
+    assert assessment.retrieved_chunk_count == 1
+    assert assessment.usable_chunk_count == 1
+    assert assessment.independent_evidence_count == 1
     assert assessment.usable_evidence == evidence
 
 
@@ -49,7 +59,10 @@ def test_single_strong_result_is_sufficient_when_minimum_is_one():
         evidence, max_distance=0.5, min_evidence=1
     )
 
-    assert assessment.reason == "sufficient evidence: 1 usable chunks"
+    assert assessment.reason == (
+        "sufficient evidence: 1 independent evidence units "
+        "from 1 usable chunks"
+    )
     assert assessment.evidence_count == 1
     assert assessment.best_distance == 0.31
     assert assessment.usable_evidence == evidence
@@ -63,6 +76,8 @@ def test_multiple_strong_results_are_sufficient():
     )
 
     assert assessment.evidence_count == 2
+    assert assessment.usable_chunk_count == 2
+    assert assessment.independent_evidence_count == 2
     assert assessment.best_distance == 0.31
     assert assessment.usable_evidence == evidence
 
@@ -79,6 +94,8 @@ def test_strong_and_weak_results_only_count_usable_evidence():
 
     assert assessment.sufficient is True
     assert assessment.evidence_count == 4
+    assert assessment.usable_chunk_count == 2
+    assert assessment.independent_evidence_count == 2
     assert assessment.usable_evidence == evidence[:2]
     assert assessment.usable_evidence[0] is evidence[0]
     assert assessment.usable_evidence[1] is evidence[1]
@@ -132,3 +149,22 @@ def test_min_evidence_below_one_is_rejected():
         check_retrieval_sufficiency(
             [make_evidence(0.31)], max_distance=0.5, min_evidence=0
         )
+
+
+def test_multiple_usable_chunks_from_one_document_are_one_unit():
+    evidence = [
+        make_evidence(0.31, 0, doc_id="doc-shared"),
+        make_evidence(0.37, 1, doc_id="doc-shared"),
+    ]
+
+    assessment = check_retrieval_sufficiency(
+        evidence, max_distance=0.5, min_evidence=2
+    )
+
+    assert assessment.sufficient is False
+    assert assessment.retrieved_chunk_count == 2
+    assert assessment.usable_chunk_count == 2
+    assert assessment.independent_evidence_count == 1
+    assert assessment.grouping_manifest[0].grouping_reasons == [
+        "same_doc_id"
+    ]

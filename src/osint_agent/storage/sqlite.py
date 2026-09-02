@@ -1,9 +1,10 @@
 """SQLite schema creation for the ARGUS application."""
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 from osint_agent.config import settings
+from osint_agent.models.document import Document
 
 
 def _create_documents_table(con: sqlite3.Connection) -> None:
@@ -99,13 +100,6 @@ def create_db(db_path: str | Path = settings.DB_PATH) -> None:
         _create_indexes(con)
 
 
-
-    import sqlite3
-
-from osint_agent.config import settings
-from osint_agent.models.document import Document
-
-
 def get_document(doc_id: str) -> Document | None:
     """Load one stored document from SQLite."""
 
@@ -144,6 +138,60 @@ def get_document(doc_id: str) -> Document | None:
         raw_text=row["raw_text"],
         text=row["cleaned_text"],
     )
+
+
+def get_documents_by_ids(doc_ids: set[str]) -> dict[str, Document]:
+    """Load authoritative documents for a set of retrieval document IDs.
+
+    A missing database or uninitialized schema is treated as no resolved
+    records. The evidence-identity boundary then keeps unresolved documents
+    separately countable unless another deterministic signal proves identity.
+    """
+
+    if not doc_ids or not Path(settings.DB_PATH).is_file():
+        return {}
+
+    placeholders = ", ".join("?" for _ in doc_ids)
+    try:
+        with sqlite3.connect(settings.DB_PATH) as con:
+            con.row_factory = sqlite3.Row
+            rows = con.execute(
+                f"""
+                SELECT
+                    doc_id,
+                    title,
+                    source,
+                    provider,
+                    source_type,
+                    published_date,
+                    url,
+                    raw_text,
+                    cleaned_text
+                FROM documents
+                WHERE doc_id IN ({placeholders})
+                """,
+                tuple(sorted(doc_ids)),
+            ).fetchall()
+    except sqlite3.OperationalError as exc:
+        if "no such table" not in str(exc).lower():
+            raise
+        return {}
+
+    documents = [
+        Document(
+            doc_id=row["doc_id"],
+            title=row["title"],
+            source=row["source"],
+            provider=row["provider"],
+            source_type=row["source_type"],
+            published_date=row["published_date"],
+            url=row["url"],
+            raw_text=row["raw_text"],
+            text=row["cleaned_text"],
+        )
+        for row in rows
+    ]
+    return {document.doc_id: document for document in documents}
 
 
 def get_documents() -> list[Document]:

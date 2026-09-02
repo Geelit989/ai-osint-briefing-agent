@@ -24,8 +24,12 @@ def reason_over_evidence(
     if not assessment.sufficient:
         return InsufficientEvidenceResult(
             reason=assessment.reason,
-            evidence_count=assessment.evidence_count,
-            usable_evidence_count=len(assessment.usable_evidence),
+            evidence_count=assessment.retrieved_chunk_count,
+            usable_evidence_count=assessment.usable_chunk_count,
+            retrieved_chunk_count=assessment.retrieved_chunk_count,
+            usable_chunk_count=assessment.usable_chunk_count,
+            independent_evidence_count=assessment.independent_evidence_count,
+            grouping_manifest=assessment.grouping_manifest,
         )
     return synthesize_brief(
         query,
