@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from osint_agent.models.document import EvidenceChunk
 from osint_agent.reasoning.synthesis import (
     CitationValidationFailure,
@@ -14,7 +16,7 @@ def evidence(doc_id: str, chunk: int, distance: float = 0.2) -> EvidenceChunk:
     return EvidenceChunk(
         chunk_id=f"{doc_id}::chunk-{chunk:03}",
         doc_id=doc_id,
-        text=f"Reported evidence from {doc_id}, chunk {chunk}.",
+        text="The supplied reporting documents a development.",
         title=f"Title {doc_id}",
         source="Fixture News",
         provider="fixture",
@@ -25,27 +27,37 @@ def evidence(doc_id: str, chunk: int, distance: float = 0.2) -> EvidenceChunk:
     )
 
 
-def valid_output(citations: list[str] | None = None) -> dict:
+def valid_output(
+    citations: list[str] | None = None,
+    chunk_id: str = "doc-a::chunk-000",
+    text: str = "The supplied reporting documents a development.",
+) -> dict:
     citations = citations or ["S1"]
+    span = {
+        "source_id": citations[0],
+        "chunk_id": chunk_id,
+        "start": 0,
+        "end": len(text),
+        "text": text,
+    }
+    statement = {
+        "text": text,
+        "citations": citations,
+        "supporting_spans": [span],
+    }
     return {
-        "title": "PROJECT ARGUS — FIXTURE INTELLIGENCE BRIEF",
-        "bluf": {
-            "text": "The supplied reporting indicates a documented development.",
-            "citations": citations,
-        },
+        "title": statement,
+        "bluf": statement,
         "reported_developments": [
-            {"text": "A development was reported.", "citations": citations}
+            statement
         ],
         "analytic_assessments": [
             {
-                "text": "ARGUS assesses the reporting is consistent.",
+                **statement,
                 "confidence": "moderate",
-                "citations": citations,
             }
         ],
-        "intelligence_gaps": [
-            "Intent is not established by supplied evidence."
-        ],
+        "intelligence_gaps": [statement],
     }
 
 
@@ -57,6 +69,20 @@ class FakeModel:
     def generate(self, system_prompt, user_prompt, schema):
         self.calls += 1
         return self.response
+
+
+class SupportingModel:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self, system_prompt, user_prompt, schema):
+        self.calls += 1
+        payload = json.loads(user_prompt.split("\n\n", 1)[1])
+        return {
+            "claim_id": payload["claim_id"],
+            "status": "supported",
+            "issues": [],
+        }
 
 
 def test_insufficient_gate_returns_typed_result_without_model_call():
@@ -82,7 +108,12 @@ def test_zero_results_skip_model_call():
 def test_sufficient_evidence_generates_typed_traceable_brief():
     model = FakeModel(valid_output())
     result = reason_over_evidence(
-        "query", [evidence("doc-a", 0)], 0.5, 1, model=model
+        "query",
+        [evidence("doc-a", 0)],
+        0.5,
+        1,
+        model=model,
+        support_model=SupportingModel(),
     )
 
     assert result.status == "success"
@@ -92,6 +123,8 @@ def test_sufficient_evidence_generates_typed_traceable_brief():
     assert result.brief.sources[0].url == "https://example.test/doc-a"
     assert result.brief.bluf.citations == ["S1"]
     assert result.brief.reported_developments[0].citations == ["S1"]
+    assert result.claim_support.status == "supported"
+    assert len(result.claim_support.judgments) == 5
 
 
 def test_duplicate_document_chunks_map_to_one_logical_source():
@@ -156,7 +189,14 @@ def test_missing_optional_source_metadata_does_not_crash():
         distance=0.2,
     )
     result = reason_over_evidence(
-        "query", [chunk], 0.5, 1, model=FakeModel(valid_output())
+        "query",
+        [chunk],
+        0.5,
+        1,
+        model=FakeModel(
+            valid_output(chunk_id=chunk.chunk_id, text=chunk.text)
+        ),
+        support_model=SupportingModel(),
     )
 
     assert result.status == "success"

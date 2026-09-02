@@ -4,38 +4,111 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 Confidence = Literal["low", "moderate", "high"]
+ClaimSupportIssue = Literal[
+    "unsupported_claim",
+    "modality_strengthening",
+    "attribution_loss",
+    "unsupported_inference",
+    "contradiction",
+    "partial_support",
+    "uncited_claim",
+    "missing_support_span",
+    "invalid_span_provenance",
+    "invalid_claim_evidence_association",
+]
+SemanticSupportIssue = Literal[
+    "unsupported_claim",
+    "modality_strengthening",
+    "attribution_loss",
+    "unsupported_inference",
+    "contradiction",
+    "partial_support",
+]
 
 
-class ReportedDevelopment(BaseModel):
-    """A reported factual development and its supplied source citations."""
+class SupportingSpan(BaseModel):
+    """A verbatim, character-addressed span from one retrieved chunk."""
 
-    text: str
-    citations: list[str] = Field(min_length=1)
+    source_id: str
+    chunk_id: str
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    text: str = Field(min_length=1)
 
-
-class AnalyticAssessment(BaseModel):
-    """An evidence-bounded analytic judgment, kept separate from reporting."""
-
-    text: str
-    confidence: Confidence
-    citations: list[str] = Field(min_length=1)
+    @model_validator(mode="after")
+    def end_must_follow_start(self) -> "SupportingSpan":
+        if self.end <= self.start:
+            raise ValueError("supporting span end must be greater than start")
+        return self
 
 
 class CitedStatement(BaseModel):
-    text: str
-    citations: list[str] = Field(min_length=1)
+    """One claim validated in full against its cited, verbatim evidence."""
+
+    text: str = Field(min_length=1)
+    citations: list[str] = Field(default_factory=list)
+    supporting_spans: list[SupportingSpan] = Field(default_factory=list)
+
+
+class ReportedDevelopment(CitedStatement):
+    """A reported factual development and its supplied source citations."""
+
+
+class AnalyticAssessment(CitedStatement):
+    """An evidence-bounded analytic judgment, kept separate from reporting."""
+
+    confidence: Confidence
+
+
+class IntelligenceGap(CitedStatement):
+    """A claim about what the supplied evidence does or does not establish."""
 
 
 class GeneratedBrief(BaseModel):
-    title: str
+    title: CitedStatement
     bluf: CitedStatement
     reported_developments: list[ReportedDevelopment]
     analytic_assessments: list[AnalyticAssessment]
-    intelligence_gaps: list[str]
+    intelligence_gaps: list[IntelligenceGap]
+
+
+class SemanticSupportDecision(BaseModel):
+    """Strict structured output returned by the bounded semantic validator."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    claim_id: str
+    status: Literal["supported", "unsupported"]
+    issues: list[SemanticSupportIssue]
+
+    @model_validator(mode="after")
+    def status_and_issues_must_agree(self) -> "SemanticSupportDecision":
+        if self.status == "supported" and self.issues:
+            raise ValueError("supported decision cannot contain support issues")
+        if self.status == "unsupported" and not self.issues:
+            raise ValueError("unsupported decision must contain a support issue")
+        return self
+
+
+class ClaimSupportJudgment(BaseModel):
+    """Auditable support result for one generated claim."""
+
+    claim_id: str
+    claim_text: str
+    status: Literal["supported", "unsupported"]
+    issues: list[ClaimSupportIssue]
+    rationale: str
+
+
+class ClaimSupportReport(BaseModel):
+    """Post-citation claim-support validation result."""
+
+    status: Literal["supported", "unsupported"]
+    judgments: list[ClaimSupportJudgment]
 
 
 class SourceReference(BaseModel):
@@ -63,6 +136,7 @@ class IntelligenceBrief(GeneratedBrief):
 class BriefSuccess(BaseModel):
     status: Literal["success"] = "success"
     brief: IntelligenceBrief
+    claim_support: ClaimSupportReport
 
 
 class InsufficientEvidenceResult(BaseModel):
