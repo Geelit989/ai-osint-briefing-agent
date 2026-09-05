@@ -11,6 +11,7 @@ Workflow:
 import logging
 import sqlite3
 import argparse
+import sys
 
 from osint_agent.config import settings
 from osint_agent.extraction.ner import (
