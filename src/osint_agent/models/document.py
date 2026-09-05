@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -12,6 +12,7 @@ class Document(BaseModel):
     provider: str
     source_type: str
     published_date: datetime | None = None
+    event_time: datetime | None = None
     retrieved_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -19,6 +20,8 @@ class Document(BaseModel):
     raw_text: str
     text: str
     meta_data: dict[str, Any] = Field(default_factory=dict)
+    contradiction_group: str | None = None
+    contradiction_position: Literal["affirmation", "denial"] | None = None
 
     @field_validator("raw_text", "text")
     @classmethod
@@ -30,8 +33,8 @@ class Document(BaseModel):
         return cleaned_value
     
 
-    @field_validator("published_date", mode="before")
-    def parse_published_date(cls, value):
+    @field_validator("published_date", "event_time", mode="before")
+    def parse_optional_datetime(cls, value):
         if value is None:
             return None
         
@@ -56,7 +59,7 @@ class Document(BaseModel):
             except ValueError:
                 continue    
 
-        raise ValueError(f"Unable to parse published_date: {value}")
+        raise ValueError(f"Unable to parse datetime: {value}")
     
 
     def to_record(self) -> dict[str, Any]:
@@ -94,7 +97,11 @@ class EvidenceChunk(BaseModel):
     provider: str | None = None
     source_type: str | None = None
     published_date: str | None = None
+    event_time: str | None = None
+    retrieved_at: str | None = None
     url: str | None = None
+    contradiction_group: str | None = None
+    contradiction_position: Literal["affirmation", "denial"] | None = None
 
     distance: float = Field(
         ...,

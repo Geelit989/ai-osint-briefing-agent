@@ -21,6 +21,12 @@ ClaimSupportIssue = Literal[
     "missing_support_span",
     "invalid_span_provenance",
     "invalid_claim_evidence_association",
+    "polarity_change",
+    "forecast_as_occurrence",
+    "temporal_strengthening",
+    "stale_currentness",
+    "denial_as_fact",
+    "unknown_contradiction_reference",
 ]
 SemanticSupportIssue = Literal[
     "unsupported_claim",
@@ -29,11 +35,18 @@ SemanticSupportIssue = Literal[
     "unsupported_inference",
     "contradiction",
     "partial_support",
+    "polarity_change",
+    "forecast_as_occurrence",
+    "temporal_strengthening",
+    "stale_currentness",
+    "denial_as_fact",
 ]
 
 
 class SupportingSpan(BaseModel):
     """A verbatim, character-addressed span from one retrieved chunk."""
+
+    model_config = ConfigDict(extra="forbid")
 
     source_id: str
     chunk_id: str
@@ -51,9 +64,12 @@ class SupportingSpan(BaseModel):
 class CitedStatement(BaseModel):
     """One claim validated in full against its cited, verbatim evidence."""
 
+    model_config = ConfigDict(extra="forbid")
+
     text: str = Field(min_length=1)
     citations: list[str] = Field(default_factory=list)
     supporting_spans: list[SupportingSpan] = Field(default_factory=list)
+    acknowledged_contradictions: list[str] = Field(default_factory=list)
 
 
 class ReportedDevelopment(CitedStatement):
@@ -71,6 +87,8 @@ class IntelligenceGap(CitedStatement):
 
 
 class GeneratedBrief(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: CitedStatement
     bluf: CitedStatement
     reported_developments: list[ReportedDevelopment]
@@ -124,7 +142,20 @@ class SourceReference(BaseModel):
     provider: str | None = None
     source_type: str | None = None
     published_date: str | None = None
+    event_time: str | None = None
+    retrieved_at: str | None = None
     url: str | None = None
+    contradiction_group: str | None = None
+    contradiction_position: Literal["affirmation", "denial"] | None = None
+
+
+class KnownContradiction(BaseModel):
+    """A conflict explicitly represented in selected evidence metadata."""
+
+    contradiction_id: str
+    source_ids: list[str] = Field(min_length=2)
+    chunk_ids: list[str] = Field(min_length=2)
+    positions: list[Literal["affirmation", "denial"]] = Field(min_length=2)
 
 
 class IntelligenceBrief(GeneratedBrief):
@@ -133,6 +164,7 @@ class IntelligenceBrief(GeneratedBrief):
     query: str
     generated_date: str
     sources: list[SourceReference]
+    known_contradictions: list[KnownContradiction] = Field(default_factory=list)
 
 
 class BriefSuccess(BaseModel):

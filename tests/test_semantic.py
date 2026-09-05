@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from osint_agent.models.document import EvidenceChunk
 from osint_agent.retrieval.semantic import semantic_search
 
@@ -29,6 +31,10 @@ def test_semantic_search_returns_evidence_chunks(monkeypatch):
                     "provider": "currents",
                     "source_type": "news",
                     "published_date": "2026-08-10",
+                    "event_time": "2026-08-09T20:00:00+00:00",
+                    "retrieved_at": "2026-08-10T01:00:00+00:00",
+                    "contradiction_group": "event-1",
+                    "contradiction_position": "affirmation",
                 },
                 {
                     "doc_id": "doc-456",
@@ -57,6 +63,10 @@ def test_semantic_search_returns_evidence_chunks(monkeypatch):
         "osint_agent.retrieval.semantic.query_chunks",
         lambda query_embedding, n_results: fake_results,
     )
+    monkeypatch.setattr(
+        "osint_agent.retrieval.semantic.assert_index_usable",
+        lambda **kwargs: SimpleNamespace(expected_chunk_count=2),
+    )
 
     results = semantic_search(
         "military cooperation",
@@ -78,6 +88,10 @@ def test_semantic_search_returns_evidence_chunks(monkeypatch):
     assert first.provider == "currents"
     assert first.source_type == "news"
     assert first.published_date == "2026-08-10"
+    assert first.event_time == "2026-08-09T20:00:00+00:00"
+    assert first.retrieved_at == "2026-08-10T01:00:00+00:00"
+    assert first.contradiction_group == "event-1"
+    assert first.contradiction_position == "affirmation"
     assert first.distance == 0.2834
     assert (
         first.text

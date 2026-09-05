@@ -19,9 +19,11 @@ import argparse
 import logging
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from osint_agent.config import settings
+from osint_agent.storage.sqlite import create_db
 
 
 logger = logging.getLogger(__name__)
@@ -38,11 +40,14 @@ CREATE TABLE IF NOT EXISTS {DOCUMENTS_TABLE} (
     provider TEXT NOT NULL,
     source_type TEXT NOT NULL,
     published_date TEXT,
+    event_time TEXT,
     retrieved_at TEXT NOT NULL,
     url TEXT,
     raw_text TEXT NOT NULL,
     cleaned_text TEXT NOT NULL,
-    meta_data TEXT NOT NULL DEFAULT '{{}}'
+    meta_data TEXT NOT NULL DEFAULT '{{}}',
+    contradiction_group TEXT,
+    contradiction_position TEXT
 )
 """
 
@@ -137,6 +142,9 @@ def create_schema(db_path: Path) -> None:
         for statement in INDEX_STATEMENTS:
             con.execute(statement)
 
+    # Apply the authoritative additive migrations and index-state metadata.
+    create_db(db_path)
+
     logger.info("Database schema created successfully.")
 
 
@@ -157,6 +165,16 @@ def truncate_database(db_path: Path) -> None:
         # Delete child records before parent records.
         con.execute(f"DELETE FROM {ENTITIES_TABLE}")
         con.execute(f"DELETE FROM {DOCUMENTS_TABLE}")
+        con.execute(
+            """
+            UPDATE semantic_index_state
+            SET status = 'stale',
+                error = 'authoritative corpus was truncated',
+                updated_at = ?
+            WHERE state_key = 'semantic_index'
+            """,
+            (datetime.now(timezone.utc).isoformat(),),
+        )
 
         # Reset AUTOINCREMENT values.
         con.execute(

@@ -47,7 +47,8 @@ Current capabilities include:
 * Using `nomic-embed-text` with retrieval-specific task prefixes
 * Persisting embeddings and chunk metadata in ChromaDB
 * Performing semantic top-k retrieval against stored reporting
-* Deterministic/idempotent Chroma upserts
+* Explicit, idempotent SQLite-to-Chroma reconciliation
+* Corpus-current and semantic-compatibility gates before retrieval
 * Persistent Chroma collections across runtime restarts
 * Centralized application configuration through `config.py`
 * Environment variable management through `.env`
@@ -55,6 +56,18 @@ Current capabilities include:
 * End-to-end smoke testing of the ingestion and persistence workflow
 
 SQLite currently serves as ARGUS's **authoritative structured data store**, while ChromaDB serves as its **semantic retrieval index**.
+
+## Verified Semantic Index State
+
+SQLite is authoritative and Chroma is disposable derived state. `python scripts/index_corpus.py` is the explicit reconciliation path. It takes a deterministic SQLite snapshot, marks the attempt `in_progress`, rebuilds the local Chroma collection, verifies actual chunk membership/content/provenance, rechecks the authoritative snapshot, and only then commits `current` state in SQLite's `semantic_index_state` table. Failed or interrupted attempts remain non-current and semantic retrieval fails closed until this command succeeds. State precedence is: missing collection is `absent`; an `in_progress`/failed attempt is `incomplete`; unreadable, corrupt, legacy, or replaced state is `invalid`; authoritative or derived-record divergence is `stale`; and only fully verified state is `current`. A verified unchanged index does not need to be rebuilt before each query, although the retrieval boundary re-establishes its durable validity on every supported semantic search.
+
+Corpus freshness and semantic compatibility are separate checks. Corpus identity is SHA-256 over deterministically ordered document IDs plus cleaned/indexable text and the title/source/provider/type/publication/event/retrieval/URL/represented-conflict metadata copied into indexed evidence. Raw text, entity rows, and arbitrary `meta_data` do not participate because they do not determine the indexed representation. A successfully reconciled empty corpus is current and compatible, but retrieval returns no evidence and the existing sufficiency gate prevents synthesis.
+
+The compatibility manifest records only effective semantic-index behavior: index schema version, Ollama provider, embedding model tag and locally resolved model digest, embedding dimension, document/query task prefixes, chunk size/overlap and chunking version, tokenizer identifier and serialized-tokenizer digest, normalization version, and Chroma distance metric. Its canonical JSON and SHA-256 fingerprint are stored together. Any mismatch, missing/legacy/corrupt state, replaced collection, changed record, unexpected dimension, or metric drift requires explicit reconciliation; retrieval never silently rebuilds or uses an unverifiable index. Mutable Ollama tags are protected by resolving the locally installed model content digest on reconciliation and retrieval.
+
+ARGUS preserves publication, event, retrieval, and reasoning-reference times as distinct values. Event time remains unknown when it was not supplied; publication time is not substituted. Each reasoning run uses one timezone-aware reference time, which tests may inject. No universal source-age threshold is imposed: older reporting can support historical claims, while the claim-support validator must reject its unsupported promotion to current state.
+
+Retrieved bodies, titles, source metadata, and quoted spans are serialized as JSON data in user-role model messages; trusted synthesis and validation controls remain in system-role prompts. Structured output, citation, exact-span, every-citation-contributes, known-contradiction, and semantic claim-support checks remain mandatory. Explicit conflict metadata on selected evidence is propagated into `known_contradictions`; a claim using such evidence must cite both represented sides and acknowledge the conflict before semantic support validation can accept it. ARGUS does not perform generalized contradiction discovery, temporal event extraction, or universal prompt-injection detection, and model-based semantic support judgment remains fallible.
 
 ---
 
@@ -258,7 +271,7 @@ No fixed similarity or Chroma distance threshold has been selected yet. Retrieva
 
 Core project dependencies currently include:
 
-* Python 3.11+
+* Python 3.13 (canonical supported runtime)
 * spaCy
 * Pydantic
 * requests
@@ -401,7 +414,6 @@ Additional tests will be added as embedding, Chroma persistence, retrieval, and 
 * Established separate `indexing` and vector-storage responsibilities
 * Centralized embedding model configuration
 * Established canonical project-root-based Chroma persistence
-* Synchronized the current development architecture into the Enterprise development environment
 
 ---
 

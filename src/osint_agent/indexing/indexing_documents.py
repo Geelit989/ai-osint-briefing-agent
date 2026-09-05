@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import hashlib
 
 from osint_agent.models.document import Document
 from osint_agent.preprocessing.chunking import chunk_document
@@ -7,6 +8,7 @@ from osint_agent.storage.chroma import (
     delete_document_chunks,
     upsert_chunks,
 )
+from osint_agent.storage.sqlite import mark_semantic_index_stale
 
 
 @dataclass
@@ -17,7 +19,50 @@ class IndexingResult:
     chunk_ids: list[str]
 
 
-def index_document(document: Document) -> IndexingResult:
+def chunk_metadata(
+    document: Document,
+    chunk,
+    *,
+    corpus_digest: str = "",
+    compatibility_fingerprint: str = "",
+) -> dict:
+    """Build the provenance metadata persisted beside one derived chunk."""
+
+    return {
+        "doc_id": chunk.doc_id,
+        "chunk_index": chunk.chunk_index,
+        "token_count": chunk.token_count,
+        "chunk_content_digest": hashlib.sha256(
+            chunk.text.encode("utf-8")
+        ).hexdigest(),
+        "title": document.title or "",
+        "source": document.source or "",
+        "provider": document.provider,
+        "source_type": document.source_type,
+        "published_date": (
+            document.published_date.isoformat()
+            if document.published_date
+            else ""
+        ),
+        "event_time": (
+            document.event_time.isoformat() if document.event_time else ""
+        ),
+        "retrieved_at": document.retrieved_at.isoformat(),
+        "url": document.url or "",
+        "contradiction_group": document.contradiction_group or "",
+        "contradiction_position": document.contradiction_position or "",
+        "corpus_digest": corpus_digest,
+        "compatibility_fingerprint": compatibility_fingerprint,
+    }
+
+
+def index_document(
+    document: Document,
+    *,
+    corpus_digest: str = "",
+    compatibility_fingerprint: str = "",
+    manage_state: bool = True,
+) -> IndexingResult:
     """Chunk, embed, and replace a Document in the semantic index."""
 
     chunks = chunk_document(document)
@@ -44,23 +89,19 @@ def index_document(document: Document) -> IndexingResult:
     ]
 
     metadatas = [
-        {
-            "doc_id": chunk.doc_id,
-            "chunk_index": chunk.chunk_index,
-            "token_count": chunk.token_count,
-            "title": document.title or "",
-            "source": document.source or "",
-            "provider": document.provider,
-            "source_type": document.source_type,
-            "published_date": (
-                document.published_date.isoformat()
-                if document.published_date
-                else ""
-            ),
-            "url": document.url or "",
-        }
+        chunk_metadata(
+            document,
+            chunk,
+            corpus_digest=corpus_digest,
+            compatibility_fingerprint=compatibility_fingerprint,
+        )
         for chunk in chunks
     ]
+
+    if manage_state:
+        mark_semantic_index_stale(
+            "direct document indexing requires corpus reconciliation"
+        )
 
     delete_document_chunks(document.doc_id)
 
@@ -81,10 +122,19 @@ def index_document(document: Document) -> IndexingResult:
 
 def index_documents(
     documents: list[Document],
+    *,
+    corpus_digest: str = "",
+    compatibility_fingerprint: str = "",
+    manage_state: bool = True,
 ) -> list[IndexingResult]:
     """Index multiple Documents into the semantic index."""
 
     return [
-        index_document(document)
+        index_document(
+            document,
+            corpus_digest=corpus_digest,
+            compatibility_fingerprint=compatibility_fingerprint,
+            manage_state=manage_state,
+        )
         for document in documents
     ]

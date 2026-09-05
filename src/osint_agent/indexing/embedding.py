@@ -3,11 +3,28 @@ import ollama
 from osint_agent.config import settings
 
 
+class EmbeddingDimensionError(ValueError):
+    """An embedding did not match the configured retrieval space."""
+
+
+def _validate_dimensions(embeddings: list[list[float]]) -> None:
+    invalid = [
+        index
+        for index, embedding in enumerate(embeddings)
+        if len(embedding) != settings.EMBEDDING_DIMENSION
+    ]
+    if invalid:
+        raise EmbeddingDimensionError(
+            "Embedding dimension mismatch: expected "
+            f"{settings.EMBEDDING_DIMENSION}, invalid rows={invalid}"
+        )
+
+
 def embed_documents(texts: list[str]) -> list[list[float]]:
     """Embed document or chunk text for semantic indexing."""
 
     prefixed_texts = [
-        f"search_document: {text}"
+        f"{settings.DOCUMENT_EMBEDDING_PREFIX}{text}"
         for text in texts
     ]
 
@@ -16,7 +33,9 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
         input=prefixed_texts,
     )
 
-    return response["embeddings"]
+    embeddings = response["embeddings"]
+    _validate_dimensions(embeddings)
+    return embeddings
 
 
 def embed_query(query: str) -> list[float]:
@@ -24,7 +43,8 @@ def embed_query(query: str) -> list[float]:
 
     response = ollama.embed(
         model=settings.EMBEDDING_MODEL,
-        input=f"search_query: {query}",
+        input=f"{settings.QUERY_EMBEDDING_PREFIX}{query}",
     )
-
-    return response["embeddings"][0]
+    embeddings = response["embeddings"]
+    _validate_dimensions(embeddings)
+    return embeddings[0]

@@ -1,5 +1,7 @@
 """Thin orchestration layer for retrieval, gating, and bounded synthesis."""
 
+from datetime import datetime
+
 from osint_agent.models.brief import BriefResult, InsufficientEvidenceResult
 from osint_agent.models.document import EvidenceChunk
 from osint_agent.reasoning.claim_support import ClaimSupportModel
@@ -15,6 +17,7 @@ def reason_over_evidence(
     min_evidence: int,
     model: StructuredReasoningModel | None = None,
     support_model: ClaimSupportModel | None = None,
+    reference_time: datetime | None = None,
 ) -> BriefResult:
     """Enforce the sufficiency gate before any model can be invoked."""
 
@@ -31,11 +34,16 @@ def reason_over_evidence(
             independent_evidence_count=assessment.independent_evidence_count,
             grouping_manifest=assessment.grouping_manifest,
         )
+    synthesis_kwargs = {
+        "model": model,
+        "support_model": support_model,
+    }
+    if reference_time is not None:
+        synthesis_kwargs["reference_time"] = reference_time
     return synthesize_brief(
         query,
         assessment.usable_evidence,
-        model=model,
-        support_model=support_model,
+        **synthesis_kwargs,
     )
 
 
@@ -46,6 +54,7 @@ def generate_brief_for_query(
     n_results: int = 5,
     model: StructuredReasoningModel | None = None,
     support_model: ClaimSupportModel | None = None,
+    reference_time: datetime | None = None,
 ) -> BriefResult:
     """Run the existing retrieval interface, then gate and synthesize."""
 
@@ -57,4 +66,5 @@ def generate_brief_for_query(
         min_evidence,
         model=model,
         support_model=support_model,
+        reference_time=reference_time,
     )

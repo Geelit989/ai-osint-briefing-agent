@@ -121,7 +121,11 @@ def test_index_documents_indexes_each_document(
 
 from osint_agent.models.document import Document
 from osint_agent.indexing.indexing_documents import index_document
-from osint_agent.storage.chroma import get_document_collection
+from osint_agent.config import settings
+from osint_agent.storage.chroma import (
+    create_document_collection,
+    get_document_collection,
+)
 
 
 TEST_DOC_ID = "stale-chunk-test"
@@ -137,8 +141,17 @@ def get_doc_records(doc_id: str) -> dict:
     )
 
 
-def test_reindexing_document_removes_stale_chunks():
+def test_reindexing_document_removes_stale_chunks(tmp_path, monkeypatch):
     """Re-indexing a document should replace all prior Chroma chunks."""
+
+    monkeypatch.setattr(settings, "CHROMA_PATH", tmp_path / "chroma")
+    monkeypatch.setattr(settings, "DB_PATH", tmp_path / "authoritative.db")
+    monkeypatch.setattr(settings, "CHROMA_COLLECTION", "replacement_test")
+    monkeypatch.setattr(
+        "osint_agent.indexing.indexing_documents.embed_documents",
+        lambda texts: [[0.1, 0.2, 0.3] for _ in texts],
+    )
+    create_document_collection()
 
     collection = get_document_collection()
 
@@ -205,8 +218,3 @@ def test_reindexing_document_removes_stale_chunks():
     assert not surviving_stale_ids
     assert current_ids == new_ids
     assert len(current_ids) == result_v2.chunks_created
-
-    # Cleanup so the test does not leave test records in Chroma.
-    collection.delete(
-        where={"doc_id": TEST_DOC_ID}
-    )

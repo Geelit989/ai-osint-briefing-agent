@@ -27,6 +27,7 @@ class Settings:
 
     CHROMA_PATH = PROJECT_ROOT / "data" / "chroma"
     CHROMA_COLLECTION = "argus_document_chunks"
+    CHROMA_DISTANCE_METRIC = os.getenv("CHROMA_DISTANCE_METRIC", "l2")
 
     # -----------------------------------------------------------------------
     # API Keys
@@ -64,10 +65,23 @@ class Settings:
         "nomic-embed-text",
     )
 
+    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+
+    DOCUMENT_EMBEDDING_PREFIX = "search_document: "
+    QUERY_EMBEDDING_PREFIX = "search_query: "
+
     TOKENIZER_NAME = os.getenv(
         "TOKENIZER_NAME",
         "nomic-ai/nomic-embed-text-v1.5",
     )
+
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "600"))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
+
+    # Bump these versions when implementation-only semantic behavior changes.
+    INDEX_SCHEMA_VERSION = 1
+    CHUNKING_IMPLEMENTATION_VERSION = 1
+    TEXT_NORMALIZATION_VERSION = 1
 
 
     REASONING_MODEL = os.getenv(

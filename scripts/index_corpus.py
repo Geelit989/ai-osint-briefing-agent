@@ -37,12 +37,18 @@ def main() -> None:
         "documents_indexed=%d "
         "chunks_indexed=%d "
         "chroma_before=%d "
-        "chroma_after=%d",
+        "chroma_after=%d "
+        "changed=%s "
+        "state=%s "
+        "compatibility_fingerprint=%s",
         result.documents_found,
         result.documents_indexed,
         result.chunks_indexed,
         result.chroma_count_before,
         result.chroma_count_after,
+        result.changed,
+        result.corpus_status,
+        result.compatibility_fingerprint,
     )
 
     end = time.perf_counter()

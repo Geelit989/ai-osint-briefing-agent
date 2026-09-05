@@ -6,8 +6,8 @@ from osint_agent.models.document import Document, Chunk
 from osint_agent.config import settings
 
 
-CHUNK_SIZE = 600
-CHUNK_OVERLAP = 100
+CHUNK_SIZE = settings.CHUNK_SIZE
+CHUNK_OVERLAP = settings.CHUNK_OVERLAP
 
 tokenizer = AutoTokenizer.from_pretrained(settings.TOKENIZER_NAME)
 
@@ -30,6 +30,11 @@ def normalize_for_comparison(text: str) -> str:
 
 
 def chunk_document(document: Document) -> list[Chunk]:
+
+    if CHUNK_SIZE < 1 or not 0 <= CHUNK_OVERLAP < CHUNK_SIZE:
+        raise ValueError(
+            "chunk size must be positive and overlap must be smaller than size"
+        )
 
     tokens = tokenizer.encode(
         document.text,
