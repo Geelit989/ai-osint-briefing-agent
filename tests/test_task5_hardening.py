@@ -37,8 +37,6 @@ def span(chunk: EvidenceChunk, source_id: str) -> dict:
     return {
         "source_id": source_id,
         "chunk_id": chunk.chunk_id,
-        "start": 0,
-        "end": len(chunk.text),
         "text": chunk.text,
     }
 
@@ -52,7 +50,7 @@ def statement(
     return {
         "text": text,
         "citations": citations,
-        "supporting_spans": spans,
+        "supporting_quotes": spans,
         "acknowledged_contradictions": acknowledged or [],
     }
 
@@ -314,7 +312,7 @@ def test_role_and_delimiter_like_source_text_stays_json_data_and_cannot_bypass()
     synthesis = CaptureSynthesisModel(generated)
     support = SupportModel()
 
-    with pytest.raises(ClaimSupportValidationFailure):
+    with pytest.raises(StructuredOutputFailure):
         reason_over_evidence(
             "query",
             [chunk],

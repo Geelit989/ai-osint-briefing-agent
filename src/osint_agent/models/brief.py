@@ -96,6 +96,38 @@ class GeneratedBrief(BaseModel):
     intelligence_gaps: list[IntelligenceGap]
 
 
+class EvidenceQuote(BaseModel):
+    """Model-selected verbatim evidence, without model-authored offsets."""
+
+    model_config = ConfigDict(extra="forbid")
+    source_id: str
+    text: str = Field(min_length=1)
+    chunk_id: str | None = None
+
+
+class SynthesisStatement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1)
+    citations: list[str] = Field(min_length=1)
+    supporting_quotes: list[EvidenceQuote] = Field(min_length=1)
+    acknowledged_contradictions: list[str] = Field(default_factory=list)
+
+
+class SynthesisAssessment(SynthesisStatement):
+    confidence: Confidence
+
+
+class SynthesisDraft(BaseModel):
+    """Generation-only contract; intelligence gaps remain substantive claims."""
+
+    model_config = ConfigDict(extra="forbid")
+    title: SynthesisStatement
+    bluf: SynthesisStatement
+    reported_developments: list[SynthesisStatement]
+    analytic_assessments: list[SynthesisAssessment]
+    intelligence_gaps: list[SynthesisStatement]
+
+
 class SemanticSupportDecision(BaseModel):
     """Strict structured output returned by the bounded semantic validator."""
 

@@ -36,14 +36,12 @@ def valid_output(
     span = {
         "source_id": citations[0],
         "chunk_id": chunk_id,
-        "start": 0,
-        "end": len(text),
         "text": text,
     }
     statement = {
         "text": text,
         "citations": citations,
-        "supporting_spans": [span],
+        "supporting_quotes": [span],
     }
     return {
         "title": statement,

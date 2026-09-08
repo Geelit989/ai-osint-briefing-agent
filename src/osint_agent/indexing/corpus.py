@@ -45,6 +45,9 @@ class IndexReconciliationError(RuntimeError):
     """The explicit index repair attempt did not safely commit."""
 
 
+EMBEDDING_BATCH_SIZE = 32
+
+
 @dataclass(frozen=True)
 class CorpusIndexingResult:
     documents_found: int
@@ -219,7 +222,16 @@ def reconcile_index(
 
     try:
         embed = embedding_function or embed_documents
-        embeddings = embed([record.document for record in records]) if records else []
+        embeddings: list[list[float]] = []
+        for start in range(0, len(records), EMBEDDING_BATCH_SIZE):
+            batch = records[start : start + EMBEDDING_BATCH_SIZE]
+            batch_embeddings = embed([record.document for record in batch])
+            if len(batch_embeddings) != len(batch):
+                raise ValueError(
+                    "Chunk/embedding count mismatch in reconciliation batch: "
+                    f"{len(batch)} chunks, {len(batch_embeddings)} embeddings"
+                )
+            embeddings.extend(batch_embeddings)
         if len(embeddings) != len(records):
             raise ValueError(
                 "Chunk/embedding count mismatch during reconciliation: "

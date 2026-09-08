@@ -39,12 +39,9 @@ def support_span(
     quote: str | None = None,
 ) -> dict[str, Any]:
     quote = quote or chunk.text
-    start = chunk.text.index(quote)
     return {
         "source_id": source_id,
         "chunk_id": chunk.chunk_id,
-        "start": start,
-        "end": start + len(quote),
         "text": quote,
     }
 
@@ -57,7 +54,7 @@ def statement(
     return {
         "text": text,
         "citations": citations,
-        "supporting_spans": spans,
+        "supporting_quotes": spans,
     }
 
 
@@ -197,8 +194,22 @@ def test_uncited_substantive_claim_fails_support_validation():
     output = generated_output(chunk.text, [], [], chunk)
     validator = ScriptedSupportModel()
 
+    # Exercise the final validator directly: generation now rejects this earlier.
+    from datetime import datetime, timezone
+    from osint_agent.models.brief import GeneratedBrief
+    from osint_agent.reasoning.claim_support import validate_claim_support
+    from osint_agent.reasoning.synthesis import build_source_mapping
+    final = GeneratedBrief.model_validate({
+        "title": {"text": chunk.text, "citations": ["S1"], "supporting_spans": [{
+            "source_id": "S1", "chunk_id": chunk.chunk_id, "text": chunk.text,
+            "start": 0, "end": len(chunk.text),
+        }]},
+        "bluf": {"text": chunk.text}, "reported_developments": [],
+        "analytic_assessments": [], "intelligence_gaps": [],
+    })
     with pytest.raises(ClaimSupportValidationFailure) as exc_info:
-        run_brief([chunk], output, validator)
+        validate_claim_support(final, [chunk], build_source_mapping([chunk]), validator,
+                               reference_time=datetime.now(timezone.utc))
 
     judgment = exc_info.value.report.judgments[0]
     assert judgment.claim_id == "bluf"

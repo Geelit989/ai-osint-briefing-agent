@@ -104,6 +104,45 @@ def test_unchanged_corpus_is_current_and_reconciliation_is_idempotent(index_env)
     assert inspection.usable is True
 
 
+def test_reconciliation_batches_embeddings_and_writes_complete_index(
+    index_env, monkeypatch
+):
+    db_path, manifest, insert = index_env
+    for index in range(5):
+        insert(document(f"doc-{index}", f"Authoritative report {index}."))
+
+    embedding_calls = []
+
+    def recording_embeddings(texts):
+        embedding_calls.append(texts)
+        return deterministic_embeddings(texts)
+
+    monkeypatch.setattr(
+        "osint_agent.indexing.corpus.EMBEDDING_BATCH_SIZE", 2
+    )
+    result = reconcile_index(
+        runtime_manifest=manifest,
+        embedding_function=recording_embeddings,
+    )
+
+    documents = get_documents(db_path)
+    corpus_digest = authoritative_corpus_digest(documents)
+    records = expected_chunks(
+        documents,
+        corpus_digest,
+        compatibility_fingerprint(manifest),
+    )
+    assert [len(batch) for batch in embedding_calls] == [2, 2, 1]
+    assert [text for batch in embedding_calls for text in batch] == [
+        record.document for record in records
+    ]
+    assert set(get_document_collection().get()["ids"]) == {
+        record.chunk_id for record in records
+    }
+    assert result.chunks_indexed == len(records)
+    assert inspect_index_state(runtime_manifest=manifest).usable is True
+
+
 def test_content_addition_and_deletion_each_make_index_stale(index_env):
     db_path, manifest, insert = index_env
     insert(document("doc-a", "Version one."))
