@@ -20,7 +20,7 @@ Its SHA-256 is
 The completed live-local invocation was:
 
 ```sh
-.venv/bin/python scripts/seed_adversarial_corpus.py /Users/duk3y6/Downloads/argus_adversarial_corpus_50.zip --root /tmp/argus-adversarial-v1
+.venv/bin/python scripts/seed_adversarial_corpus.py /path/to/argus_adversarial_corpus_50.zip --root /tmp/argus-adversarial-v1
 ```
 
 Full machine-readable results, including every document's actual chunk IDs and
