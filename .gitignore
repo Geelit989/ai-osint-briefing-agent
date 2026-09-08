@@ -26,3 +26,9 @@ osint_sys.db
 
 # Future vector store
 data/chroma/
+
+# Local analyst workspace
+web/node_modules/
+web/.next/
+web/*.tsbuildinfo
+.local/

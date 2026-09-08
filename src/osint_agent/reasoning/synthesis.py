@@ -20,6 +20,7 @@ from osint_agent.models.brief import (
     SynthesisDraft,
 )
 from osint_agent.models.document import EvidenceChunk
+from osint_agent.models.workflow import WorkflowTrace, trace_stage
 from osint_agent.reasoning.claim_support import (
     ClaimSupportModel,
     iter_substantive_claims,
@@ -258,10 +259,13 @@ def synthesize_brief(
     support_model: ClaimSupportModel | None = None,
     generated_date: date | None = None,
     reference_time: datetime | None = None,
+    trace: WorkflowTrace | None = None,
 ) -> BriefSuccess:
     """Generate and validate a brief from evidence already approved by the gate."""
 
     sources = build_source_mapping(evidence)
+    if trace is not None:
+        trace.sources = sources
     if not sources:
         raise ValueError("synthesize_brief requires supplied evidence")
     if reference_time is None:
@@ -273,46 +277,54 @@ def synthesize_brief(
     if reference_time.tzinfo is None or reference_time.utcoffset() is None:
         raise ValueError("reasoning reference_time must be timezone-aware")
     known_contradictions = identify_known_contradictions(evidence, sources)
+    if trace is not None:
+        trace.known_contradictions = known_contradictions
     active_model = model or OllamaReasoningModel(
         settings.REASONING_MODEL,
         settings.OLLAMA_HOST,
         settings.REQUEST_TIMEOUT_SECONDS,
     )
-    try:
-        raw = active_model.generate(
-            SYSTEM_PROMPT,
-            _build_user_prompt(
-                query,
-                evidence,
-                sources,
-                known_contradictions,
-                reference_time,
-            ),
-            SynthesisDraft.model_json_schema(),
+    with trace_stage(trace, "reasoning"):
+        try:
+            raw = active_model.generate(
+                SYSTEM_PROMPT,
+                _build_user_prompt(
+                    query,
+                    evidence,
+                    sources,
+                    known_contradictions,
+                    reference_time,
+                ),
+                SynthesisDraft.model_json_schema(),
+            )
+        except ReasoningFailure:
+            raise
+        except Exception as exc:
+            raise ModelInvocationFailure("Reasoning model invocation failed") from exc
+
+    with trace_stage(trace, "structured_output"):
+        try:
+            draft = SynthesisDraft.model_validate(raw)
+        except (ValidationError, TypeError, ValueError) as exc:
+            raise StructuredOutputFailure(
+                "Reasoning model returned invalid structured output"
+            ) from exc
+
+    with trace_stage(trace, "citation_validation"):
+        _validate_citations(draft, {source.source_id for source in sources})
+    with trace_stage(trace, "contradiction_references"):
+        _validate_contradiction_references(draft, known_contradictions)
+    with trace_stage(trace, "provenance"):
+        generated = resolve_provenance(draft, evidence, sources)
+    with trace_stage(trace, "claim_support"):
+        claim_support = validate_claim_support(
+            generated,
+            evidence,
+            sources,
+            model=(support_model if support_model is not None else active_model),
+            known_contradictions=known_contradictions,
+            reference_time=reference_time,
         )
-    except ReasoningFailure:
-        raise
-    except Exception as exc:
-        raise ModelInvocationFailure("Reasoning model invocation failed") from exc
-
-    try:
-        draft = SynthesisDraft.model_validate(raw)
-    except (ValidationError, TypeError, ValueError) as exc:
-        raise StructuredOutputFailure(
-            "Reasoning model returned invalid structured output"
-        ) from exc
-
-    _validate_citations(draft, {source.source_id for source in sources})
-    _validate_contradiction_references(draft, known_contradictions)
-    generated = resolve_provenance(draft, evidence, sources)
-    claim_support = validate_claim_support(
-        generated,
-        evidence,
-        sources,
-        model=(support_model if support_model is not None else active_model),
-        known_contradictions=known_contradictions,
-        reference_time=reference_time,
-    )
     brief = IntelligenceBrief(
         **generated.model_dump(),
         query=query,

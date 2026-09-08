@@ -57,6 +57,30 @@ Current capabilities include:
 
 SQLite currently serves as ARGUS's **authoritative structured data store**, while ChromaDB serves as its **semantic retrieval index**.
 
+## Local Analyst Workspace
+
+ARGUS now includes a local Next.js/TypeScript analyst workspace and a FastAPI
+adapter that calls the existing Python reasoning workflow directly. It supports
+brief generation, evidence and citation inspection, stored documents, run
+history, diagnostics, and corpus readiness. Insufficient evidence and rejected
+drafts remain fail-closed results.
+
+On the existing Python 3.14 workstation, with Node.js 24 available:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements-ui.txt
+# If using this workstation's local Node installation:
+export PATH="$PWD/.local/node/bin:$PATH"
+npm --prefix web ci
+./scripts/start_argus_ui.sh
+```
+
+Open **http://127.0.0.1:3000**. The helper builds the frontend when needed and
+starts both services on loopback. It leaves Ollama management to the existing
+local setup. See [the workspace guide](docs/analyst-workspace.md) for manual
+commands, API contracts, validation results, and known live-index limitations.
+
 ## Verified Semantic Index State
 
 SQLite is authoritative and Chroma is disposable derived state. `python scripts/index_corpus.py` is the explicit reconciliation path. It takes a deterministic SQLite snapshot, marks the attempt `in_progress`, rebuilds the local Chroma collection, verifies actual chunk membership/content/provenance, rechecks the authoritative snapshot, and only then commits `current` state in SQLite's `semantic_index_state` table. Failed or interrupted attempts remain non-current and semantic retrieval fails closed until this command succeeds. State precedence is: missing collection is `absent`; an `in_progress`/failed attempt is `incomplete`; unreadable, corrupt, legacy, or replaced state is `invalid`; authoritative or derived-record divergence is `stale`; and only fully verified state is `current`. A verified unchanged index does not need to be rebuilt before each query, although the retrieval boundary re-establishes its durable validity on every supported semantic search.
@@ -271,7 +295,7 @@ No fixed similarity or Chroma distance threshold has been selected yet. Retrieva
 
 Core project dependencies currently include:
 
-* Python 3.13 (canonical supported runtime)
+* Python 3.14 (current local workstation runtime)
 * spaCy
 * Pydantic
 * requests
