@@ -23,6 +23,7 @@ osint_sys.db
 *.db
 *.sqlite
 *.sqlite3
+notebooks/chroma_db/
 
 # Future vector store
 data/chroma/
