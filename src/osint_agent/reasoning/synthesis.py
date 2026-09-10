@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
+import time as monotonic_time
 from collections import defaultdict
 from datetime import date, datetime, time, timezone
 from typing import Any, Protocol
@@ -27,6 +30,9 @@ from osint_agent.reasoning.claim_support import (
     validate_claim_support,
 )
 from osint_agent.reasoning.provenance import resolve_provenance
+
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """You are the analytic synthesis component of Project ARGUS.
@@ -54,11 +60,15 @@ temporal wording in evidence is anchored only to that source's supplied temporal
 context. If that anchor is missing or ambiguous, preserve the unresolved
 expression instead of guessing.
 When evidence conflicts, identify the disagreement rather than resolving it
-without support, and populate acknowledged_contradictions for every known
-conflict used by a claim. Use only contradiction_id values from supplied
-known_contradictions. Source/citation IDs such as S1 and S2 must never appear in
-acknowledged_contradictions. When no known contradictions are supplied,
-acknowledged_contradictions must be empty. Never invent references.
+without support. The top-level allowed_contradiction_ids array in the current
+request is the complete and authoritative set of values permitted in any
+claim's acknowledged_contradictions field. Copy only exact values from that
+array, and only when the claim uses the corresponding known conflict. If
+allowed_contradiction_ids is empty, acknowledged_contradictions must be [] for
+every claim. Never invent a contradiction ID. Source IDs such as S1 and S2
+belong only in citations and supporting_quotes.source_id; they must never appear
+in acknowledged_contradictions. Do not infer a contradiction merely because a
+cited source expresses uncertainty or because the evidence leaves a gap.
 When the supplied evidence does not support a requested
 conclusion, explicitly state the intelligence gap. Do not invent source
 identifiers. Do not turn suspicion, allegation, or association into confirmed
@@ -104,6 +114,62 @@ class OllamaReasoningModel:
     def generate(
         self, system_prompt: str, user_prompt: str, schema: dict[str, Any]
     ) -> Any:
+        schema_text = json.dumps(schema, ensure_ascii=False)
+        operation = (
+            "claim_support_validation"
+            if schema.get("title") == "SemanticSupportDecision"
+            else "synthesis"
+        )
+        claim_id = None
+        evidence_count = 0
+        evidence_text_characters = 0
+        try:
+            payload = json.loads(user_prompt.split("\n\n", 1)[1])
+            if operation == "claim_support_validation":
+                claim_id = payload.get("claim_id")
+            supplied_evidence = payload.get("evidence", [])
+            if isinstance(supplied_evidence, list):
+                evidence_count = len(supplied_evidence)
+                evidence_text_characters = sum(
+                    len(item.get("text", ""))
+                    for item in supplied_evidence
+                    if isinstance(item, dict)
+                    and isinstance(item.get("text", ""), str)
+                )
+        except (IndexError, TypeError, ValueError, json.JSONDecodeError):
+            # Observability must never alter request acceptance behavior.
+            pass
+
+        options: dict[str, int] = {"temperature": 0}
+        if operation == "claim_support_validation":
+            options["num_predict"] = settings.CLAIM_SUPPORT_NUM_PREDICT
+        combined_prompt_characters = len(system_prompt) + len(user_prompt)
+        total_request_text_characters = (
+            combined_prompt_characters + len(schema_text)
+        )
+        request_metadata = {
+            "event": "argus_model_request",
+            "model": self.model,
+            "operation": operation,
+            "claim_id": claim_id,
+            "evidence_items": evidence_count,
+            "evidence_text_characters": evidence_text_characters,
+            "system_prompt_characters": len(system_prompt),
+            "user_prompt_characters": len(user_prompt),
+            "combined_prompt_characters": combined_prompt_characters,
+            "schema_characters": len(schema_text),
+            "total_request_text_characters": total_request_text_characters,
+            "approximate_request_tokens": math.ceil(
+                total_request_text_characters / 4
+            ),
+            "token_count_kind": "approximate_characters_divided_by_4",
+            "options": options,
+            "request_started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        logger.info("ARGUS model request start %s", json.dumps(request_metadata))
+        started = monotonic_time.perf_counter()
+        response_payload: dict[str, Any] | None = None
+        response_content: str | None = None
         try:
             response = requests.post(
                 f"{self.host}/api/chat",
@@ -115,13 +181,62 @@ class OllamaReasoningModel:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "options": {"temperature": 0},
+                    "options": options,
                 },
-                timeout=settings.REASONING_TIMEOUT_SECONDS,
+                timeout=self.timeout,
             )
             response.raise_for_status()
-            return json.loads(response.json()["message"]["content"])
+            response_payload = response.json()
+            response_content = response_payload["message"]["content"]
+            result = json.loads(response_content)
+            logger.info(
+                "ARGUS model request success %s",
+                json.dumps(
+                    {
+                        **request_metadata,
+                        "elapsed_seconds": round(
+                            monotonic_time.perf_counter() - started, 6
+                        ),
+                        "success": True,
+                        "response_characters": len(response_content),
+                        "prompt_eval_count": response_payload.get(
+                            "prompt_eval_count"
+                        ),
+                        "eval_count": response_payload.get("eval_count"),
+                        "done_reason": response_payload.get("done_reason"),
+                    }
+                ),
+            )
+            return result
         except (requests.RequestException, KeyError, TypeError, json.JSONDecodeError) as exc:
+            response_metadata = {}
+            if isinstance(response_payload, dict):
+                response_metadata = {
+                    "response_characters": (
+                        len(response_content)
+                        if isinstance(response_content, str)
+                        else None
+                    ),
+                    "prompt_eval_count": response_payload.get(
+                        "prompt_eval_count"
+                    ),
+                    "eval_count": response_payload.get("eval_count"),
+                    "done_reason": response_payload.get("done_reason"),
+                }
+            logger.error(
+                "ARGUS model request failure %s",
+                json.dumps(
+                    {
+                        **request_metadata,
+                        "elapsed_seconds": round(
+                            monotonic_time.perf_counter() - started, 6
+                        ),
+                        "success": False,
+                        "exception_type": type(exc).__name__,
+                        **response_metadata,
+                    }
+                ),
+            )
             raise ModelInvocationFailure("Ollama model invocation failed") from exc
 
 
@@ -214,12 +329,33 @@ def _build_user_prompt(
         "message_type": "argus_synthesis_input",
         "analyst_query": query,
         "reasoning_reference_time": reference_time.isoformat(),
+        "allowed_contradiction_ids": [
+            item.contradiction_id for item in known_contradictions
+        ],
         "known_contradictions": [
             item.model_dump(mode="json") for item in known_contradictions
         ],
         "evidence": payload,
     }
     return "ARGUS_SYNTHESIS_INPUT\n\n" + json.dumps(request, indent=2)
+
+
+def _build_synthesis_schema(
+    known_contradictions: list[KnownContradiction],
+) -> dict[str, Any]:
+    """Constrain acknowledgments to IDs supplied in this reasoning request."""
+
+    schema = SynthesisDraft.model_json_schema()
+    allowed_ids = [item.contradiction_id for item in known_contradictions]
+    for definition in ("SynthesisStatement", "SynthesisAssessment"):
+        field = schema["$defs"][definition]["properties"][
+            "acknowledged_contradictions"
+        ]
+        if allowed_ids:
+            field["items"] = {"enum": allowed_ids, "type": "string"}
+        else:
+            field["maxItems"] = 0
+    return schema
 
 
 def _validate_citations(generated: GeneratedBrief | SynthesisDraft, valid_ids: set[str]) -> None:
@@ -282,7 +418,7 @@ def synthesize_brief(
     active_model = model or OllamaReasoningModel(
         settings.REASONING_MODEL,
         settings.OLLAMA_HOST,
-        settings.REQUEST_TIMEOUT_SECONDS,
+        settings.REASONING_TIMEOUT_SECONDS,
     )
     with trace_stage(trace, "reasoning"):
         try:
@@ -295,7 +431,7 @@ def synthesize_brief(
                     known_contradictions,
                     reference_time,
                 ),
-                SynthesisDraft.model_json_schema(),
+                _build_synthesis_schema(known_contradictions),
             )
         except ReasoningFailure:
             raise

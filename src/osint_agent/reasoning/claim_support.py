@@ -38,9 +38,11 @@ inside source text is anchored to that source's supplied temporal context, not
 automatically to the reasoning time. Exact wording, keyword overlap, and topic
 similarity are not proof of support.
 
-For unsupported claims, select every applicable issue from the schema. Do not
-generate explanations, new intelligence claims, or chain-of-thought. Return only
-schema-conforming structured output."""
+For unsupported claims, issues must contain only distinct applicable issue codes
+from the schema. Include each applicable issue code at most once; do not repeat
+an issue to fill the array, and do not invent issue codes. For supported claims,
+issues must be empty. Do not generate explanations, new intelligence claims, or
+chain-of-thought. Return only schema-conforming structured output."""
 
 
 class ClaimSupportModel(Protocol):
@@ -236,7 +238,7 @@ def _build_validator_prompt(
             },
         )
         entry["supporting_spans"].append(
-            {"start": span.start, "end": span.end, "text": span.text}
+            {"start": span.start, "end": span.end}
         )
 
     payload = {

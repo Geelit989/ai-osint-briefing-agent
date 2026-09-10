@@ -149,3 +149,67 @@ def test_downstream_unknown_reference_defense_remains_authoritative():
     assert exc.value.report.judgments[0].claim_id == "intelligence_gaps[0]"
     assert "unknown_contradiction_reference" in exc.value.report.judgments[0].issues
     support.generate.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("groups", "expected"),
+    [([], []), (["C1"], ["C1"]), (["event-1", "C2"], ["C2", "event-1"])],
+)
+def test_synthesis_input_serializes_authoritative_contradiction_allowlist(
+    groups, expected,
+):
+    evidence, _ = inputs(groups)
+    sources = synthesis.build_source_mapping(evidence)
+    known = synthesis.identify_known_contradictions(evidence, sources)
+
+    prompt = synthesis._build_user_prompt(
+        "query", evidence, sources, known, datetime.now(timezone.utc)
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert payload["allowed_contradiction_ids"] == expected
+    assert payload["allowed_contradiction_ids"] == [
+        item["contradiction_id"] for item in payload["known_contradictions"]
+    ]
+
+
+def test_synthesis_prompt_and_schema_distinguish_source_and_contradiction_ids():
+    prompt = synthesis.SYSTEM_PROMPT
+    base_schema = SynthesisDraft.model_json_schema()
+    description = base_schema["$defs"][
+        "SynthesisStatement"
+    ]["properties"]["acknowledged_contradictions"]["description"]
+
+    assert "allowed_contradiction_ids array" in prompt
+    assert "complete and authoritative set" in prompt
+    assert "allowed_contradiction_ids is empty" in prompt
+    assert "acknowledged_contradictions must be []" in prompt
+    assert "Source IDs such as S1 and S2" in prompt
+    assert "belong only in citations and supporting_quotes.source_id" in prompt
+    assert "Do not infer a contradiction" in prompt
+    assert "Only exact contradiction IDs" in description
+    assert "never source IDs" in description
+    assert "Must be empty" in description
+
+
+def test_request_schema_enforces_exact_contradiction_allowlist():
+    evidence, _ = inputs(["C1", "event-1"])
+    sources = synthesis.build_source_mapping(evidence)
+    known = synthesis.identify_known_contradictions(evidence, sources)
+
+    allowed_schema = synthesis._build_synthesis_schema(known)
+    empty_schema = synthesis._build_synthesis_schema([])
+
+    for definition in ("SynthesisStatement", "SynthesisAssessment"):
+        allowed = allowed_schema["$defs"][definition]["properties"][
+            "acknowledged_contradictions"
+        ]
+        empty = empty_schema["$defs"][definition]["properties"][
+            "acknowledged_contradictions"
+        ]
+        assert allowed["items"] == {
+            "enum": ["C1", "event-1"],
+            "type": "string",
+        }
+        assert empty["maxItems"] == 0
+        assert empty["items"] == {"type": "string"}

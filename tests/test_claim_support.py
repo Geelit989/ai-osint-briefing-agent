@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, get_args
 
 import pytest
+from pydantic import ValidationError
 
+from osint_agent.models.brief import SemanticSupportDecision, SemanticSupportIssue
 from osint_agent.models.document import EvidenceChunk
 from osint_agent.reasoning.claim_support import (
     ClaimSupportValidationFailure,
@@ -119,6 +121,59 @@ def unsupported_decision(issue: str) -> dict[str, Any]:
         "status": "unsupported",
         "issues": [issue],
     }
+
+
+def test_semantic_support_schema_bounds_unique_issue_vocabulary():
+    issues = SemanticSupportDecision.model_json_schema()["properties"]["issues"]
+
+    assert set(issues["items"]["enum"]) == set(get_args(SemanticSupportIssue))
+    assert issues["maxItems"] == 11
+    assert issues["uniqueItems"] is True
+
+
+def test_supported_semantic_decision_requires_no_issues():
+    decision = SemanticSupportDecision.model_validate(
+        {"claim_id": "bluf", "status": "supported", "issues": []}
+    )
+
+    assert decision.issues == []
+
+
+@pytest.mark.parametrize(
+    "issues",
+    [
+        ["unsupported_claim"],
+        ["unsupported_claim", "partial_support"],
+    ],
+)
+def test_unsupported_semantic_decision_accepts_distinct_issues(issues):
+    decision = SemanticSupportDecision.model_validate(
+        {"claim_id": "bluf", "status": "unsupported", "issues": issues}
+    )
+
+    assert decision.issues == issues
+
+
+def test_semantic_support_decision_rejects_duplicate_issues():
+    with pytest.raises(ValidationError, match="issue codes must be unique"):
+        SemanticSupportDecision.model_validate(
+            {
+                "claim_id": "bluf",
+                "status": "unsupported",
+                "issues": ["unsupported_claim", "unsupported_claim"],
+            }
+        )
+
+
+def test_semantic_support_prompt_requires_distinct_issue_codes():
+    from osint_agent.reasoning.claim_support import SUPPORT_SYSTEM_PROMPT
+
+    prompt = " ".join(SUPPORT_SYSTEM_PROMPT.split())
+    assert "only distinct applicable issue codes" in prompt
+    assert "each applicable issue code at most once" in prompt
+    assert "do not repeat an issue to fill the array" in prompt
+    assert "do not invent issue codes" in prompt
+    assert "For supported claims, issues must be empty" in prompt
 
 
 def run_brief(
@@ -300,6 +355,10 @@ def test_genuine_multi_chunk_support_passes_and_is_bounded():
         first.chunk_id,
         second.chunk_id,
     }
+    assert bluf_payload["evidence"][0]["supporting_spans"] == [
+        {"start": 0, "end": len(first.text)}
+    ]
+    assert "text" not in bluf_payload["evidence"][0]["supporting_spans"][0]
 
 
 def test_fabricated_supporting_span_fails_provenance_before_semantics():
@@ -330,6 +389,28 @@ def test_malformed_validator_output_is_system_failure_not_unsupported():
     with pytest.raises(ClaimSupportValidatorFailure) as exc_info:
         run_brief([chunk], output, validator)
 
+    assert not isinstance(exc_info.value, ClaimSupportValidationFailure)
+
+
+def test_duplicate_validator_issues_fail_closed_as_system_failure():
+    chunk = evidence("Forces deployed.")
+    output = generated_output(
+        chunk.text, ["S1"], [support_span(chunk, "S1")], chunk
+    )
+    validator = ScriptedSupportModel(
+        {
+            "bluf": {
+                "claim_id": "bluf",
+                "status": "unsupported",
+                "issues": ["unsupported_claim", "unsupported_claim"],
+            }
+        }
+    )
+
+    with pytest.raises(ClaimSupportValidatorFailure) as exc_info:
+        run_brief([chunk], output, validator)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
     assert not isinstance(exc_info.value, ClaimSupportValidationFailure)
 
 

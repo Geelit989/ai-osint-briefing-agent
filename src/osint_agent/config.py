@@ -95,7 +95,13 @@ class Settings:
     )
 
     REASONING_TIMEOUT_SECONDS = int(
-    os.getenv("REASONING_TIMEOUT_SECONDS", "120")
-)
+        os.getenv("REASONING_TIMEOUT_SECONDS", "300")
+    )
+
+    # The validator returns only a claim ID, status, and issue codes. Bound it
+    # independently of the substantially larger synthesis response.
+    CLAIM_SUPPORT_NUM_PREDICT = int(
+        os.getenv("CLAIM_SUPPORT_NUM_PREDICT", "256")
+    )
 
 settings = Settings()

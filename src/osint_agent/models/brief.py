@@ -110,7 +110,14 @@ class SynthesisStatement(BaseModel):
     text: str = Field(min_length=1)
     citations: list[str] = Field(min_length=1)
     supporting_quotes: list[EvidenceQuote] = Field(min_length=1)
-    acknowledged_contradictions: list[str] = Field(default_factory=list)
+    acknowledged_contradictions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Only exact contradiction IDs from the current request's "
+            "allowed_contradiction_ids; never source IDs. Must be empty when "
+            "allowed_contradiction_ids is empty."
+        ),
+    )
 
 
 class SynthesisAssessment(SynthesisStatement):
@@ -135,10 +142,15 @@ class SemanticSupportDecision(BaseModel):
 
     claim_id: str
     status: Literal["supported", "unsupported"]
-    issues: list[SemanticSupportIssue]
+    issues: list[SemanticSupportIssue] = Field(
+        max_length=11,
+        json_schema_extra={"uniqueItems": True},
+    )
 
     @model_validator(mode="after")
     def status_and_issues_must_agree(self) -> "SemanticSupportDecision":
+        if len(self.issues) != len(set(self.issues)):
+            raise ValueError("semantic support issue codes must be unique")
         if self.status == "supported" and self.issues:
             raise ValueError("supported decision cannot contain support issues")
         if self.status == "unsupported" and not self.issues:
